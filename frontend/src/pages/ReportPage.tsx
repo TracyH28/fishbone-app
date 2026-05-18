@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import RiskBadge from "../components/RiskBadge";
+import FishboneDiagram from "../components/FishboneDiagram";
 import { Fish, Download } from "lucide-react";
+
+type Rating = "high" | "medium" | "low";
 
 interface Category { id: number; name: string; colour: string }
 interface RawAction { id: number; cause_id: number; description: string; owner: "siemens" | "csl" }
@@ -10,10 +13,11 @@ interface RawCause {
   id: number; category_id: number; description: string;
   cause_type: "lesson_learned" | "new_project_approach";
   selected: boolean | null;
+  dismissal_reason: string | null;
 }
 interface VoteCount { cause_id: number; count: string }
-interface RiskFinal { cause_id: number; stage: number; rating: string }
-interface ResidualFinal { cause_id: number; rating: string }
+interface RiskFinal { cause_id: number; stage: number; rating: Rating }
+interface ResidualFinal { cause_id: number; rating: Rating }
 interface RawReport {
   session: { id: number; title: string; project_name: string; stage: number; created_at: string };
   categories: Category[];
@@ -26,8 +30,8 @@ interface RawReport {
 
 interface EnrichedCause extends RawCause {
   vote_count: number;
-  initial_risk: string | null;
-  residual_risk: string | null;
+  initial_risk: Rating | null;
+  residual_risk: Rating | null;
   actions: RawAction[];
 }
 
@@ -76,7 +80,10 @@ export default function ReportPage() {
   );
 
   const { session, categories, causes } = report;
-  const selectedCauses = causes.filter(c => c.selected === true);
+  const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
+  const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
+  const sortedCauses = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
+  const selectedCauses = sortedCauses.filter(c => c.selected === true);
   const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const totalActions = causes.reduce((n, c) => n + c.actions.length, 0);
 
@@ -122,13 +129,20 @@ export default function ReportPage() {
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-3">Categories</h2>
           <div className="flex flex-wrap gap-2">
-            {categories.map(cat => (
+            {sortedCategories.map(cat => (
               <span key={cat.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-white" style={{ background: cat.colour }}>
                 {cat.name}
               </span>
             ))}
           </div>
         </div>
+
+        {/* Fishbone diagram */}
+        <FishboneDiagram
+          title={session.title}
+          categories={categories}
+          causes={selectedCauses}
+        />
 
         {/* Risk summary table */}
         {selectedCauses.length > 0 && (
@@ -208,8 +222,8 @@ export default function ReportPage() {
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-4">Causes by Category</h2>
           <div className="space-y-6">
-            {categories.map(cat => {
-              const catCauses = causes.filter(c => c.category_id === cat.id);
+            {sortedCategories.map(cat => {
+              const catCauses = sortedCauses.filter(c => c.category_id === cat.id);
               if (catCauses.length === 0) return null;
               return (
                 <div key={cat.id}>
@@ -239,6 +253,9 @@ export default function ReportPage() {
                             {cause.selected === true && <span className="text-xs text-green-600 font-medium">Selected</span>}
                             {cause.selected === false && <span className="text-xs text-red-400">Dismissed</span>}
                           </div>
+                          {cause.selected === false && cause.dismissal_reason && (
+                            <p className="text-xs text-gray-500 mt-1 italic">Reason: {cause.dismissal_reason}</p>
+                          )}
                         </div>
                         {cause.selected === true && cause.initial_risk && (
                           <div className="flex items-center gap-1.5 flex-shrink-0">

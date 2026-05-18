@@ -2,8 +2,8 @@ import { useEffect, useState, FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import StageIndicator from "../components/StageIndicator";
-import RiskBadge from "../components/RiskBadge";
 import { Fish, ThumbsUp, Send, Eye, CheckCircle } from "lucide-react";
+import FishboneDiagram from "../components/FishboneDiagram";
 import { useSocket } from "../hooks/useSocket";
 
 interface Category { id: number; name: string; colour: string }
@@ -90,6 +90,29 @@ export default function ParticipantSessionPage() {
         ...prev,
         causes: prev.causes.map(c => c.id === cause_id ? { ...c, selected } : c)
       } : prev);
+    },
+    "category:added": (category) => {
+      const cat = category as Category;
+      setState(prev => prev ? { ...prev, categories: [...prev.categories, cat] } : prev);
+      // Auto-select the new category if the form has no selection yet
+      setCauseCategory(prev => prev === "" ? cat.id : prev);
+    },
+    "category:updated": (category) => {
+      const cat = category as Category;
+      setState(prev => prev ? {
+        ...prev,
+        categories: prev.categories.map(c => c.id === cat.id ? cat : c),
+      } : prev);
+    },
+    "category:deleted": (payload) => {
+      const { id: catId } = payload as { id: number };
+      setState(prev => {
+        if (!prev) return prev;
+        const remaining = prev.categories.filter(c => c.id !== catId);
+        // If the deleted category was selected in the form, fall back to the first remaining one
+        setCauseCategory(curr => curr === catId ? (remaining[0]?.id ?? "") : curr);
+        return { ...prev, categories: remaining };
+      });
     },
     "stage:changed": (payload) => {
       const { stage } = payload as { stage: number };
@@ -186,7 +209,10 @@ export default function ParticipantSessionPage() {
 
   const { session, categories, causes, actions, myVotes, myRatings } = state;
   const stage = session.stage;
-  const selectedCauses = causes.filter(c => c.selected === true);
+  const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
+  const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
+  const sortedCauses = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
+  const selectedCauses = sortedCauses.filter(c => c.selected === true);
   const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
 
   return (
@@ -210,6 +236,15 @@ export default function ParticipantSessionPage() {
           </p>
         </div>
 
+        {/* Fishbone diagram — shown whenever causes have been selected */}
+        {selectedCauses.length > 0 && (
+          <FishboneDiagram
+            title={session.title}
+            categories={categories}
+            causes={selectedCauses}
+          />
+        )}
+
         {/* Stage 1: Cause Entry */}
         {stage === 1 && (
           <div className="space-y-4">
@@ -229,7 +264,7 @@ export default function ParticipantSessionPage() {
                     onChange={e => setCauseCategory(Number(e.target.value))}
                     required
                   >
-                    {categories.map(cat => (
+                    {sortedCategories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
@@ -278,7 +313,7 @@ export default function ParticipantSessionPage() {
               <div className="card">
                 <h3 className="font-semibold mb-3 text-sm text-gray-600">All Submitted Causes ({causes.length})</h3>
                 <div className="space-y-2">
-                  {causes.map(cause => {
+                  {sortedCauses.map(cause => {
                     const cat = categoryMap[cause.category_id];
                     return (
                       <div key={cause.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
@@ -304,7 +339,7 @@ export default function ParticipantSessionPage() {
             <h2 className="font-semibold mb-2">Vote on Causes</h2>
             <p className="text-sm text-gray-500 mb-4">Upvote causes you think are most important. The facilitator will select which proceed.</p>
             <div className="space-y-3">
-              {causes.map(cause => {
+              {sortedCauses.map(cause => {
                 const cat = categoryMap[cause.category_id];
                 const voted = myVotes.includes(cause.id);
                 return (

@@ -1,17 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useSocket } from "../hooks/useSocket";
 import Layout from "../components/Layout";
 import StageIndicator from "../components/StageIndicator";
 import RiskBadge from "../components/RiskBadge";
-import { ChevronRight, Check, X, ThumbsUp, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2 } from "lucide-react";
+import FishboneDiagram from "../components/FishboneDiagram";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
   id: number; description: string; cause_type: string;
   category_id: number; category_name: string; category_colour: string;
   participant_name: string; selected: boolean | null;
+  dismissal_reason: string | null;
 }
 interface VoteCount { cause_id: number; count: number }
 interface RatingDist { cause_id: number; stage: number; ratings: string[] }
@@ -34,12 +36,12 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function FacilitatorSessionPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [data, setData] = useState<FullData | null>(null);
   const [voteCounts, setVoteCounts] = useState<Map<number, number>>(new Map());
   const [ratingDists, setRatingDists] = useState<Map<string, string[]>>(new Map());
   const [newAction, setNewAction] = useState<{ cause_id: number; description: string; owner: string } | null>(null);
-  const [pendingFinals, setPendingFinals] = useState<Map<string, string>>(new Map());
+  const [, setPendingFinals] = useState<Map<string, string>>(new Map());
+  const [dismissalDrafts, setDismissalDrafts] = useState<Map<number, string>>(new Map());
 
   const reload = useCallback(() => {
     api.get(`/${id}/full`).then(r => {
@@ -62,29 +64,57 @@ export default function FacilitatorSessionPage() {
 
   const socketRef = useSocket(data?.session.id ?? null, { isFacilitator: true }, {
     "cause:added": (cause) => setData(prev => prev ? { ...prev, causes: [...prev.causes, cause as Cause] } : prev),
-    "cause:voted": ({ cause_id, vote_count }: { cause_id: number; vote_count: number }) => {
+    "cause:voted": (payload) => {
+      const { cause_id, vote_count } = payload as { cause_id: number; vote_count: number };
       setVoteCounts(prev => new Map(prev).set(cause_id, vote_count));
     },
-    "cause:rated": ({ cause_id, stage, ratings }: RatingDist) => {
+    "cause:rated": (payload) => {
+      const { cause_id, stage, ratings } = payload as RatingDist;
       setRatingDists(prev => new Map(prev).set(`${cause_id}:${stage}`, ratings));
     },
     "action:added": (action) => setData(prev => prev ? { ...prev, actions: [...prev.actions, action as Action] } : prev),
-    "action:deleted": ({ id: aid }: { id: number }) =>
-      setData(prev => prev ? { ...prev, actions: prev.actions.filter(a => a.id !== aid) } : prev),
-    "stage:changed": ({ stage }: { stage: number }) =>
-      setData(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev),
+    "action:deleted": (payload) => {
+      const { id: aid } = payload as { id: number };
+      setData(prev => prev ? { ...prev, actions: prev.actions.filter(a => a.id !== aid) } : prev);
+    },
+    "stage:changed": (payload) => {
+      const { stage } = payload as { stage: number };
+      setData(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev);
+    },
   });
 
   function advanceStage() {
     if (!data || !socketRef.current) return;
     const nextStage = data.session.stage + 1;
-    // Emit via socket — the server updates the DB and broadcasts stage:changed to all participants
     socketRef.current.emit("stage:advance", { sessionId: data.session.id, stage: nextStage });
+  }
+
+  function goBackStage() {
+    if (!data || !socketRef.current || data.session.stage <= 1) return;
+    const prevStage = data.session.stage - 1;
+    socketRef.current.emit("stage:advance", { sessionId: data.session.id, stage: prevStage });
   }
 
   async function selectCause(causeId: number, selected: boolean) {
     const { data: updated } = await api.patch(`/sessions/${id}/causes/${causeId}/select`, { selected });
-    setData(prev => prev ? { ...prev, causes: prev.causes.map(c => c.id === causeId ? { ...c, selected: updated.selected } : c) } : prev);
+    setData(prev => prev ? {
+      ...prev,
+      causes: prev.causes.map(c => c.id === causeId ? { ...c, selected: updated.selected, dismissal_reason: updated.dismissal_reason } : c)
+    } : prev);
+    // Clear any in-progress draft when un-dismissing
+    if (selected !== false) {
+      setDismissalDrafts(prev => { const m = new Map(prev); m.delete(causeId); return m; });
+    }
+  }
+
+  async function saveDismissalReason(causeId: number) {
+    const reason = dismissalDrafts.get(causeId) ?? "";
+    const { data: updated } = await api.patch(`/sessions/${id}/causes/${causeId}/dismissal-reason`, { dismissal_reason: reason });
+    setData(prev => prev ? {
+      ...prev,
+      causes: prev.causes.map(c => c.id === causeId ? { ...c, dismissal_reason: updated.dismissal_reason } : c)
+    } : prev);
+    setDismissalDrafts(prev => { const m = new Map(prev); m.delete(causeId); return m; });
   }
 
   async function setFinalRating(causeId: number, stage: number, rating: string) {
@@ -118,7 +148,10 @@ export default function FacilitatorSessionPage() {
   if (!data) return <Layout><div className="text-gray-400 text-center py-12">Loading…</div></Layout>;
 
   const { session, categories, causes, riskFinals, actions, residualFinals, participants } = data;
-  const selectedCauses = causes.filter(c => c.selected === true);
+  const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
+  const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
+  const sortedCauses = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
+  const selectedCauses = sortedCauses.filter(c => c.selected === true);
   const stage = session.stage;
 
   function ratingDist(causeId: number, s: number) {
@@ -149,14 +182,31 @@ export default function FacilitatorSessionPage() {
 
         <StageIndicator current={stage} />
 
-        {/* Advance stage button */}
-        {stage < 6 && (
-          <div className="flex justify-end mb-6">
+        {/* Stage navigation */}
+        <div className="flex justify-between mb-6">
+          <div>
+            {stage > 1 && (
+              <button onClick={goBackStage} className="btn-secondary">
+                <ChevronLeft className="w-4 h-4" />
+                Back to {["", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk"][stage - 1]}
+              </button>
+            )}
+          </div>
+          {stage < 6 && (
             <button onClick={advanceStage} className="btn-primary">
-              {stage === 5 ? "Complete Session" : `Advance to ${["", "Alignment", "Risk Rating", "Actions", "Residual Risk", "Complete", "Complete"][stage]}`}
+              {stage === 5 ? "Complete Session" : `Advance to ${["", "Alignment", "Risk Rating", "Actions", "Residual Risk", "Complete"][stage]}`}
               <ChevronRight className="w-4 h-4" />
             </button>
-          </div>
+          )}
+        </div>
+
+        {/* Fishbone diagram — shown whenever causes have been selected */}
+        {selectedCauses.length > 0 && (
+          <FishboneDiagram
+            title={session.title}
+            categories={categories}
+            causes={selectedCauses}
+          />
         )}
 
         {/* STAGE 1: Cause Entry */}
@@ -164,8 +214,8 @@ export default function FacilitatorSessionPage() {
           <div>
             <h2 className="text-lg font-semibold mb-1">Stage 1 — Cause Entry</h2>
             <p className="text-gray-500 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-indigo-700">{session.join_code}</span></p>
-            {categories.map(cat => {
-              const catCauses = causes.filter(c => c.category_id === cat.id);
+            {sortedCategories.map(cat => {
+              const catCauses = sortedCauses.filter(c => c.category_id === cat.id);
               return (
                 <div key={cat.id} className="card mb-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -198,35 +248,60 @@ export default function FacilitatorSessionPage() {
           <div>
             <h2 className="text-lg font-semibold mb-1">Stage 2 — Alignment</h2>
             <p className="text-gray-500 text-sm mb-4">Participants are voting. Select which causes to proceed with.</p>
-            {causes.map(cause => (
-              <div key={cause.id} className={`card mb-3 border-l-4 ${cause.selected === true ? "border-green-500" : cause.selected === false ? "border-red-300 opacity-60" : "border-gray-200"}`}
-                style={{ borderLeftColor: cause.selected === true ? undefined : cause.selected === false ? undefined : cause.category_colour }}>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ background: cause.category_colour }}>{cause.category_name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${cause.cause_type === "lesson_learned" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{TYPE_LABELS[cause.cause_type]}</span>
+            {sortedCauses.map(cause => {
+              const isDismissed = cause.selected === false;
+              const draftReason = dismissalDrafts.has(cause.id)
+                ? dismissalDrafts.get(cause.id)!
+                : (cause.dismissal_reason ?? "");
+              const reasonDirty = dismissalDrafts.has(cause.id);
+              return (
+                <div key={cause.id} className={`card mb-3 border-l-4 ${cause.selected === true ? "border-green-500" : isDismissed ? "border-red-300 opacity-70" : "border-gray-200"}`}
+                  style={{ borderLeftColor: cause.selected === true || isDismissed ? undefined : cause.category_colour }}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ background: cause.category_colour }}>{cause.category_name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${cause.cause_type === "lesson_learned" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{TYPE_LABELS[cause.cause_type]}</span>
+                      </div>
+                      <p className="text-sm font-medium">{cause.description}</p>
+                      <p className="text-xs text-gray-400 mt-1">{cause.participant_name}</p>
+                      <div className="flex items-center gap-1 mt-2">
+                        <ThumbsUp className="w-3 h-3 text-indigo-400" />
+                        <span className="text-xs font-semibold text-indigo-700">{voteCounts.get(cause.id) || 0} vote{(voteCounts.get(cause.id) || 0) !== 1 ? "s" : ""}</span>
+                      </div>
                     </div>
-                    <p className="text-sm font-medium">{cause.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">{cause.participant_name}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <ThumbsUp className="w-3 h-3 text-indigo-400" />
-                      <span className="text-xs font-semibold text-indigo-700">{voteCounts.get(cause.id) || 0} vote{(voteCounts.get(cause.id) || 0) !== 1 ? "s" : ""}</span>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button onClick={() => selectCause(cause.id, cause.selected !== true)} title="Proceed"
+                        className={`p-2 rounded-lg border transition-colors ${cause.selected === true ? "bg-green-500 border-green-500 text-white" : "border-gray-200 hover:bg-green-50 text-gray-400"}`}>
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => selectCause(cause.id, cause.selected !== false)} title="Dismiss"
+                        className={`p-2 rounded-lg border transition-colors ${isDismissed ? "bg-red-400 border-red-400 text-white" : "border-gray-200 hover:bg-red-50 text-gray-400"}`}>
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => selectCause(cause.id, cause.selected !== true)} title="Proceed"
-                      className={`p-2 rounded-lg border transition-colors ${cause.selected === true ? "bg-green-500 border-green-500 text-white" : "border-gray-200 hover:bg-green-50 text-gray-400"}`}>
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => selectCause(cause.id, cause.selected !== false)} title="Dismiss"
-                      className={`p-2 rounded-lg border transition-colors ${cause.selected === false ? "bg-red-400 border-red-400 text-white" : "border-gray-200 hover:bg-red-50 text-gray-400"}`}>
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+
+                  {/* Dismissal reason input — shown only when cause is dismissed */}
+                  {isDismissed && (
+                    <div className="mt-3 pt-3 border-t border-red-100 flex items-center gap-2">
+                      <input
+                        className="input text-xs flex-1"
+                        placeholder="Reason for dismissal (optional)…"
+                        value={draftReason}
+                        onChange={e => setDismissalDrafts(prev => new Map(prev).set(cause.id, e.target.value))}
+                        onKeyDown={e => { if (e.key === "Enter") saveDismissalReason(cause.id); }}
+                      />
+                      {reasonDirty && (
+                        <button onClick={() => saveDismissalReason(cause.id)} className="btn-secondary btn-sm text-xs whitespace-nowrap">
+                          Save
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
