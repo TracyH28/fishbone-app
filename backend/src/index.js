@@ -18,9 +18,20 @@ const httpServer = createServer(app);
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:3000",
-].filter(Boolean);
+  "http://localhost:5173",
+].filter(Boolean).map(o => o.replace(/\/$/, "")); // strip trailing slashes
 
-const corsOptions = { origin: allowedOrigins, credentials: true };
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+};
 
 const io = new Server(httpServer, { cors: corsOptions });
 
