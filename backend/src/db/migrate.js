@@ -86,11 +86,21 @@ CREATE TABLE IF NOT EXISTS residual_risk_finals (
   rating     TEXT NOT NULL CHECK (rating IN ('high','medium','low')),
   set_at     TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS cause_notes (
+  id               SERIAL PRIMARY KEY,
+  cause_id         INT REFERENCES causes(id) ON DELETE CASCADE,
+  participant_name TEXT NOT NULL,
+  content          TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
 `;
 
 async function migrate() {
   console.log("Running migrations…");
   await pool.query(schema);
+  // Additive column migrations (safe to re-run)
+  await pool.query(`ALTER TABLE causes ADD COLUMN IF NOT EXISTS dismissal_reason TEXT`);
   console.log("Migrations complete.");
   await pool.end();
 }

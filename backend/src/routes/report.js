@@ -97,8 +97,12 @@ router.get("/:sessionId/full", async (req, res) => {
   const { rows: participants } = await pool.query(
     "SELECT id, display_name, joined_at FROM participants WHERE session_id = $1", [id]
   );
+  const { rows: notes } = causeIds.length ? await pool.query(
+    "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
+    [causeIds]
+  ) : { rows: [] };
 
-  res.json({ session, categories, causes, votes, ratings, riskFinals, actions, residualFinals, participants });
+  res.json({ session, categories, causes, votes, ratings, riskFinals, actions, residualFinals, participants, notes });
 });
 
 export default router;

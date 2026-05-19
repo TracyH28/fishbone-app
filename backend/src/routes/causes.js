@@ -70,14 +70,30 @@ router.delete("/:causeId/vote", requireParticipant, async (req, res) => {
 
 // Facilitator: select/reject causes (stage 2)
 router.patch("/:causeId/select", requireFacilitator, async (req, res) => {
-  const { selected } = req.body;
+  const { selected, dismissal_reason } = req.body;
+  // Only keep a reason when dismissing; clear it on select or un-dismiss
+  const reason = selected === false ? (dismissal_reason ?? null) : null;
   const { rows } = await pool.query(
-    "UPDATE causes SET selected = $1 WHERE id = $2 AND session_id = $3 RETURNING *",
-    [selected, req.params.causeId, req.params.sessionId]
+    "UPDATE causes SET selected = $1, dismissal_reason = $2 WHERE id = $3 AND session_id = $4 RETURNING *",
+    [selected, reason, req.params.causeId, req.params.sessionId]
   );
   if (!rows.length) return res.status(404).json({ error: "Not found" });
   req.app.get("io").to(`session:${req.params.sessionId}`).emit("cause:selected", {
-    cause_id: rows[0].id, selected: rows[0].selected
+    cause_id: rows[0].id, selected: rows[0].selected, dismissal_reason: rows[0].dismissal_reason
+  });
+  res.json(rows[0]);
+});
+
+// Facilitator: update dismissal reason for an already-dismissed cause
+router.patch("/:causeId/dismissal-reason", requireFacilitator, async (req, res) => {
+  const { dismissal_reason } = req.body;
+  const { rows } = await pool.query(
+    "UPDATE causes SET dismissal_reason = $1 WHERE id = $2 AND session_id = $3 AND selected = false RETURNING *",
+    [dismissal_reason || null, req.params.causeId, req.params.sessionId]
+  );
+  if (!rows.length) return res.status(404).json({ error: "Not found or cause is not dismissed" });
+  req.app.get("io").to(`session:${req.params.sessionId}`).emit("cause:dismissal-reason", {
+    cause_id: rows[0].id, dismissal_reason: rows[0].dismissal_reason
   });
   res.json(rows[0]);
 });
@@ -103,6 +119,23 @@ router.post("/:causeId/rating", requireParticipant, async (req, res) => {
     cause_id: parseInt(req.params.causeId), stage, ratings: allRatings.map(r => r.rating)
   });
   res.json({ ok: true });
+});
+
+// Participant or facilitator: add a note to a cause
+router.post("/:causeId/notes", async (req, res) => {
+  // Accept either participant or facilitator token
+  const { content, participant_name } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: "content required" });
+  if (!participant_name || !participant_name.trim()) return res.status(400).json({ error: "participant_name required" });
+
+  const { rows } = await pool.query(
+    `INSERT INTO cause_notes (cause_id, participant_name, content)
+     VALUES ($1,$2,$3) RETURNING *`,
+    [req.params.causeId, participant_name.trim(), content.trim()]
+  );
+  const note = rows[0];
+  req.app.get("io").to(`session:${req.params.sessionId}`).emit("note:added", note);
+  res.status(201).json(note);
 });
 
 // Facilitator: set final risk rating (stage 3 or 5)

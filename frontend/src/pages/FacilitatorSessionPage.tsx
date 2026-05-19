@@ -7,6 +7,7 @@ import StageIndicator from "../components/StageIndicator";
 import RiskBadge from "../components/RiskBadge";
 import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2, Users } from "lucide-react";
 import FishboneDiagram from "../components/FishboneDiagram";
+import CauseNotesThread, { Note } from "../components/CauseNotesThread";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
@@ -26,7 +27,7 @@ interface FullData {
   categories: Category[]; causes: Cause[]; votes: VoteCount[];
   ratings: { cause_id: number; stage: number; rating: string }[];
   riskFinals: RiskFinal[]; actions: Action[]; residualFinals: ResidualFinal[];
-  participants: Participant[];
+  participants: Participant[]; notes: Note[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -43,6 +44,7 @@ export default function FacilitatorSessionPage() {
   const [, setPendingFinals] = useState<Map<string, string>>(new Map());
   const [dismissalDrafts, setDismissalDrafts] = useState<Map<number, string>>(new Map());
   const [onlineParticipants, setOnlineParticipants] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<Note[]>([]);
 
   const reload = useCallback(() => {
     api.get(`/${id}/full`).then(r => {
@@ -58,6 +60,7 @@ export default function FacilitatorSessionPage() {
         rd.set(key, arr);
       });
       setRatingDists(rd);
+      setNotes(r.data.notes ?? []);
     });
   }, [id]);
 
@@ -82,6 +85,7 @@ export default function FacilitatorSessionPage() {
       const { stage } = payload as { stage: number };
       setData(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev);
     },
+    "note:added": (note) => setNotes(prev => [...prev, note as Note]),
     "participant:online": (payload) => {
       const { display_name } = payload as { display_name: string };
       setOnlineParticipants(prev => new Set(prev).add(display_name));
@@ -147,6 +151,13 @@ export default function FacilitatorSessionPage() {
     if (!newAction || !newAction.description.trim()) return;
     await api.post(`/sessions/${id}/actions`, newAction);
     setNewAction(null);
+  }
+
+  async function addNote(causeId: number, content: string) {
+    await api.post(`/sessions/${id}/causes/${causeId}/notes`, {
+      content,
+      participant_name: "Facilitator",
+    });
   }
 
   async function deleteAction(actionId: number) {
@@ -282,11 +293,14 @@ export default function FacilitatorSessionPage() {
                   ) : (
                     <div className="space-y-2">
                       {catCauses.map(cause => (
-                        <div key={cause.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex-1">
-                            <p className="text-sm">{cause.description}</p>
-                            <p className="text-xs text-gray-400 mt-1">{cause.participant_name} · <span className={cause.cause_type === "lesson_learned" ? "text-blue-600" : "text-purple-600"}>{TYPE_LABELS[cause.cause_type]}</span></p>
+                        <div key={cause.id} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <p className="text-sm">{cause.description}</p>
+                              <p className="text-xs text-gray-400 mt-1">{cause.participant_name} · <span className={cause.cause_type === "lesson_learned" ? "text-blue-600" : "text-purple-600"}>{TYPE_LABELS[cause.cause_type]}</span></p>
+                            </div>
                           </div>
+                          <CauseNotesThread causeId={cause.id} notes={notes} myName="Facilitator" onAdd={addNote} />
                         </div>
                       ))}
                     </div>
@@ -353,6 +367,7 @@ export default function FacilitatorSessionPage() {
                       )}
                     </div>
                   )}
+                  <CauseNotesThread causeId={cause.id} notes={notes} myName="Facilitator" onAdd={addNote} />
                 </div>
               );
             })}
@@ -399,6 +414,7 @@ export default function FacilitatorSessionPage() {
                       {final && <RiskBadge rating={final as "high" | "medium" | "low"} />}
                     </div>
                   </div>
+                  <CauseNotesThread causeId={cause.id} notes={notes} myName="Facilitator" onAdd={addNote} />
                 </div>
               );
             })}
@@ -457,6 +473,7 @@ export default function FacilitatorSessionPage() {
                       <Plus className="w-4 h-4" /> Add Action
                     </button>
                   )}
+                  <CauseNotesThread causeId={cause.id} notes={notes} myName="Facilitator" onAdd={addNote} />
                 </div>
               );
             })}
@@ -510,6 +527,7 @@ export default function FacilitatorSessionPage() {
                       {residual && <RiskBadge rating={residual as "high" | "medium" | "low"} />}
                     </div>
                   </div>
+                  <CauseNotesThread causeId={cause.id} notes={notes} myName="Facilitator" onAdd={addNote} />
                 </div>
               );
             })}

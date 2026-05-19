@@ -63,6 +63,16 @@ router.patch("/:id", requireFacilitator, async (req, res) => {
   res.json(rows[0]);
 });
 
+// Facilitator: delete session (cascades all child data)
+router.delete("/:id", requireFacilitator, async (req, res) => {
+  const { rowCount } = await pool.query(
+    "DELETE FROM sessions WHERE id = $1 AND facilitator_id = $2",
+    [req.params.id, req.facilitatorId]
+  );
+  if (!rowCount) return res.status(404).json({ error: "Not found" });
+  res.status(204).end();
+});
+
 // Public: join session by code
 router.post("/join", async (req, res) => {
   const { join_code, display_name } = req.body;
@@ -129,8 +139,13 @@ router.get("/:id/state", requireParticipant, async (req, res) => {
     "SELECT * FROM residual_risk_finals WHERE cause_id = ANY($1::int[])",
     [causes.map(c => c.id)]
   );
+  const causeIds = causes.map(c => c.id);
+  const { rows: notes } = causeIds.length ? await pool.query(
+    "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
+    [causeIds]
+  ) : { rows: [] };
 
-  res.json({ session, categories, causes, myVotes: votes.map(v => v.cause_id), myRatings, riskFinals, actions, residualFinals });
+  res.json({ session, categories, causes, myVotes: votes.map(v => v.cause_id), myRatings, riskFinals, actions, residualFinals, notes });
 });
 
 export default router;
