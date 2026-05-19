@@ -143,6 +143,11 @@ export default function ReportPage() {
           title={session.title}
           categories={categories}
           causes={selectedCauses}
+          riskData={Object.fromEntries(
+            selectedCauses
+              .filter(c => c.initial_risk)
+              .map(c => [c.id, c.initial_risk as "high" | "medium" | "low"])
+          )}
         />
 
         {/* Risk summary table */}
