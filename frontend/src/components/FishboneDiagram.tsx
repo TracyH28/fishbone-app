@@ -24,8 +24,9 @@ const HEAD_H        = 100;
 const BONE_ANGLE    = Math.PI / 4;
 const MIN_BONE_LEN  = 130;
 const HORIZ_PER_CAUSE = 52;
-const BONE_MARGIN   = 100;   // vertical padding for labels + boxes
+const BONE_MARGIN      = 120;  // vertical padding for labels + boxes
 const CAUSE_BRANCH_LEN = 20;
+const LABEL_EXTENSION  = 55;   // pixels beyond bone tip where the category pill sits
 const BOX_W         = 160;
 const BOX_PADDING   = 5;
 const LINE_H        = 13;
@@ -105,7 +106,7 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
 
   // ViewBox extends left to cover the longest bone tip + label
   const firstSpineX = SPINE_START + spacing;
-  const viewBoxLeft = Math.min(0, Math.floor(firstSpineX - maxBoneLen * cosA - 160));
+  const viewBoxLeft = Math.min(0, Math.floor(firstSpineX - (maxBoneLen + LABEL_EXTENSION) * cosA - 160));
   const viewBoxWidth = W - viewBoxLeft;
 
   return (
@@ -173,15 +174,17 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
           const outerX  = spineX - boneLen * cosA;
           const outerY  = SPINE_Y + sign * boneLen * sinA;
 
-          // Pill label dimensions
+          // Pill label dimensions — positioned along the bone beyond its tip
           const labelText    = cat.name;
           const pillPadX     = 8;
           const pillPadY     = 4;
           const pillFontSize = 12;
           const pillW        = Math.max(60, labelText.length * pillFontSize * 0.6 + pillPadX * 2);
           const pillH        = pillFontSize + pillPadY * 2;
-          const pillX        = outerX - pillW / 2;
-          const pillY        = isTop ? outerY - pillH - 10 : outerY + 10;
+          const extX         = outerX - LABEL_EXTENSION * cosA;
+          const extY         = outerY + sign * LABEL_EXTENSION * sinA;
+          const pillX        = extX - pillW / 2;
+          const pillY        = isTop ? extY - pillH - 6 : extY + 6;
 
           return (
             <g key={cat.id}>

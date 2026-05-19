@@ -487,9 +487,9 @@ function ActionTable({
         <thead>
           <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
             <th className="px-3 py-2.5 font-semibold w-8">#</th>
-            <th className="px-3 py-2.5 font-semibold">Cause</th>
-            <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Category</th>
-            <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Risk</th>
+            <th className="px-3 py-2.5 font-semibold w-[30%]">Cause</th>
+            <th className="px-3 py-2.5 font-semibold whitespace-nowrap w-[13%]">Category</th>
+            <th className="px-3 py-2.5 font-semibold whitespace-nowrap w-[16%]">Risk</th>
             <th className="px-3 py-2.5 font-semibold">Action</th>
           </tr>
         </thead>
@@ -499,7 +499,7 @@ function ActionTable({
             return (
               <tr key={action.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                 <td className="px-3 py-2.5 text-gray-400 text-xs border-b border-gray-100">{i + 1}</td>
-                <td className="px-3 py-2.5 border-b border-gray-100 text-gray-700 max-w-[200px]">
+                <td className="px-3 py-2.5 border-b border-gray-100 text-gray-700">
                   <p className="leading-snug text-xs">{action.cause.description}</p>
                 </td>
                 <td className="px-3 py-2.5 border-b border-gray-100 whitespace-nowrap">
