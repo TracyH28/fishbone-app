@@ -159,6 +159,7 @@ export default function FishboneDiagram({ title, categories, causes }: Props) {
 
                 return (
                   <g key={cause.id}>
+                    <title>{cause.description}</title>
                     <line
                       x1={bx} y1={by}
                       x2={bx} y2={branchEndY}
