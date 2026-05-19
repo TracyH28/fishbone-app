@@ -26,10 +26,11 @@ const MIN_BONE_LEN  = 130;
 const HORIZ_PER_CAUSE = 52;
 const BONE_MARGIN   = 100;   // vertical padding for labels + boxes
 const CAUSE_BRANCH_LEN = 20;
-const BOX_W         = 144;
+const BOX_W         = 160;
 const BOX_PADDING   = 5;
 const LINE_H        = 13;
-const CHARS_PER_LINE = 19;
+const CHARS_PER_LINE = 22;
+const MAX_LINES      = 4;
 const RISK_BAR_W    = 4;     // width of the coloured risk left-border strip
 
 // ─── Brand colours ───────────────────────────────────────────────────────────
@@ -58,6 +59,13 @@ function wrapText(text: string): string[] {
     }
   }
   if (current) lines.push(current);
+  // Cap at MAX_LINES and add ellipsis if truncated
+  if (lines.length > MAX_LINES) {
+    const truncated = lines.slice(0, MAX_LINES);
+    const last = truncated[MAX_LINES - 1];
+    truncated[MAX_LINES - 1] = last.length <= CHARS_PER_LINE - 1 ? last + "…" : last.slice(0, CHARS_PER_LINE - 1) + "…";
+    return truncated;
+  }
   return lines;
 }
 
