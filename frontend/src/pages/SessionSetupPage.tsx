@@ -2,7 +2,7 @@ import { useEffect, useState, FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import Layout from "../components/Layout";
-import { Plus, Trash2, GripVertical, PlayCircle, Copy, Check } from "lucide-react";
+import { Plus, Trash2, GripVertical, PlayCircle, Copy, Check, Pencil, X } from "lucide-react";
 
 interface Category { id: number; name: string; colour: string; display_order: number }
 interface Session { id: number; title: string; project_name: string; join_code: string; stage: number }
@@ -21,6 +21,9 @@ export default function SessionSetupPage() {
   const [newColour, setNewColour] = useState(PRESET_COLOURS[0]);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [metaDraft, setMetaDraft] = useState({ title: "", project_name: "" });
+  const [savingMeta, setSavingMeta] = useState(false);
 
   const appUrl = window.location.origin;
 
@@ -49,6 +52,24 @@ export default function SessionSetupPage() {
     navigate(`/sessions/${id}/facilitate`);
   }
 
+  function openMetaEdit() {
+    setMetaDraft({ title: session!.title, project_name: session!.project_name });
+    setEditingMeta(true);
+  }
+
+  async function saveMeta(e: FormEvent) {
+    e.preventDefault();
+    if (!metaDraft.title.trim() || !metaDraft.project_name.trim()) return;
+    setSavingMeta(true);
+    const { data } = await api.patch(`/sessions/${id}`, {
+      title: metaDraft.title.trim(),
+      project_name: metaDraft.project_name.trim(),
+    });
+    setSession(data);
+    setEditingMeta(false);
+    setSavingMeta(false);
+  }
+
   function copyJoinLink() {
     navigator.clipboard.writeText(`${appUrl}/join`);
     setCopied(true);
@@ -61,8 +82,51 @@ export default function SessionSetupPage() {
     <Layout>
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">{session.title}</h1>
-          <p className="text-gray-500">{session.project_name}</p>
+          {editingMeta ? (
+            <form onSubmit={saveMeta} className="space-y-3">
+              <div>
+                <label className="label">Session Name</label>
+                <input
+                  className="input text-xl font-bold"
+                  value={metaDraft.title}
+                  onChange={e => setMetaDraft(d => ({ ...d, title: e.target.value }))}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="label">Project Name</label>
+                <input
+                  className="input"
+                  value={metaDraft.project_name}
+                  onChange={e => setMetaDraft(d => ({ ...d, project_name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="btn-primary btn-sm" disabled={savingMeta}>
+                  <Check className="w-4 h-4" /> {savingMeta ? "Saving…" : "Save"}
+                </button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setEditingMeta(false)} disabled={savingMeta}>
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex items-start gap-3 group">
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold">{session.title}</h1>
+                <p className="text-gray-500">{session.project_name}</p>
+              </div>
+              <button
+                onClick={openMetaEdit}
+                className="btn-secondary btn-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit session name and project"
+              >
+                <Pencil className="w-4 h-4" /> Edit
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Join info */}
