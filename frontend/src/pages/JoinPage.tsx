@@ -1,7 +1,8 @@
 import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { Fish, Users } from "lucide-react";
+import { Users } from "lucide-react";
+import SiemensLogo from "../components/SiemensLogo";
 
 export default function JoinPage() {
   const navigate = useNavigate();
@@ -31,16 +32,17 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className="min-h-screen flex items-center justify-center bg-siemens-teal-50">
       <div className="card w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="bg-purple-600 text-white p-3 rounded-2xl mb-4">
-            <Users className="w-8 h-8" />
+          <SiemensLogo heightClass="h-12" showWordmark={true} />
+          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Risk Review</p>
+          <div className="flex items-center gap-2 mt-4">
+            <div className="bg-siemens-teal text-white p-2 rounded-xl">
+              <Users className="w-5 h-5" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Join a Session</h1>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Join a Session</h1>
-          <p className="text-gray-500 mt-1 text-sm flex items-center gap-1">
-            <Fish className="w-4 h-4" /> Fishbone Risk Review
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

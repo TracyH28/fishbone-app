@@ -66,16 +66,16 @@ export default function SessionSetupPage() {
         </div>
 
         {/* Join info */}
-        <div className="card mb-6 bg-indigo-50 border-indigo-200">
-          <h2 className="font-semibold text-indigo-900 mb-2">Participant Join Details</h2>
+        <div className="card mb-6 bg-siemens-teal-50 border-siemens-teal-100">
+          <h2 className="font-semibold text-siemens-navy mb-2">Participant Join Details</h2>
           <div className="flex items-center gap-4 flex-wrap">
             <div>
-              <p className="text-xs text-indigo-600 mb-1">Join URL</p>
+              <p className="text-xs text-siemens-teal mb-1">Join URL</p>
               <p className="font-mono text-sm">{appUrl}/join</p>
             </div>
             <div>
-              <p className="text-xs text-indigo-600 mb-1">Session Code</p>
-              <p className="font-mono text-2xl font-bold tracking-widest text-indigo-700">{session.join_code}</p>
+              <p className="text-xs text-siemens-teal mb-1">Session Code</p>
+              <p className="font-mono text-2xl font-bold tracking-widest text-siemens-teal">{session.join_code}</p>
             </div>
             <button onClick={copyJoinLink} className="btn-secondary btn-sm ml-auto">
               {copied ? <><Check className="w-4 h-4 text-green-500" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy link</>}

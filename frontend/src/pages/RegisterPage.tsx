@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Fish } from "lucide-react";
+import SiemensLogo from "../components/SiemensLogo";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -27,13 +27,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className="min-h-screen flex items-center justify-center bg-siemens-teal-50">
       <div className="card w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="bg-indigo-600 text-white p-3 rounded-2xl mb-4">
-            <Fish className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create Facilitator Account</h1>
+          <SiemensLogo heightClass="h-12" showWordmark={true} />
+          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Risk Review</p>
+          <h1 className="text-xl font-bold text-gray-900 mt-4">Create Facilitator Account</h1>
           <p className="text-gray-500 mt-1 text-sm">Run lessons learned and risk review sessions</p>
         </div>
 
@@ -54,7 +53,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          Already have an account? <Link to="/login" className="text-indigo-600 font-medium hover:underline">Sign in</Link>
+          Already have an account? <Link to="/login" className="text-siemens-teal font-medium hover:underline">Sign in</Link>
         </p>
       </div>
     </div>

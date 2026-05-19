@@ -3,7 +3,8 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import RiskBadge from "../components/RiskBadge";
 import FishboneDiagram from "../components/FishboneDiagram";
-import { Fish, Download } from "lucide-react";
+import { Download } from "lucide-react";
+import SiemensLogo from "../components/SiemensLogo";
 
 type Rating = "high" | "medium" | "low";
 
@@ -99,8 +100,8 @@ export default function ReportPage() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Fish className="w-6 h-6 text-indigo-600" />
-              <span className="text-sm font-medium text-indigo-600">Fishbone Risk Review</span>
+              <SiemensLogo heightClass="h-6" showWordmark={true} />
+              <span className="text-sm font-medium text-siemens-teal ml-1">· Fishbone Risk Review</span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900">{session.title}</h1>
             <p className="text-lg text-gray-500 mt-1">{session.project_name}</p>

@@ -213,7 +213,7 @@ export default function FacilitatorSessionPage() {
         {stage === 1 && (
           <div>
             <h2 className="text-lg font-semibold mb-1">Stage 1 — Cause Entry</h2>
-            <p className="text-gray-500 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-indigo-700">{session.join_code}</span></p>
+            <p className="text-gray-500 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
             {sortedCategories.map(cat => {
               const catCauses = sortedCauses.filter(c => c.category_id === cat.id);
               return (
@@ -266,8 +266,8 @@ export default function FacilitatorSessionPage() {
                       <p className="text-sm font-medium">{cause.description}</p>
                       <p className="text-xs text-gray-400 mt-1">{cause.participant_name}</p>
                       <div className="flex items-center gap-1 mt-2">
-                        <ThumbsUp className="w-3 h-3 text-indigo-400" />
-                        <span className="text-xs font-semibold text-indigo-700">{voteCounts.get(cause.id) || 0} vote{(voteCounts.get(cause.id) || 0) !== 1 ? "s" : ""}</span>
+                        <ThumbsUp className="w-3 h-3 text-siemens-teal" />
+                        <span className="text-xs font-semibold text-siemens-teal">{voteCounts.get(cause.id) || 0} vote{(voteCounts.get(cause.id) || 0) !== 1 ? "s" : ""}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">

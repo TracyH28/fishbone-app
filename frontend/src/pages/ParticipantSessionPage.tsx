@@ -2,7 +2,8 @@ import { useEffect, useState, FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import StageIndicator from "../components/StageIndicator";
-import { Fish, ThumbsUp, Send, Eye, CheckCircle } from "lucide-react";
+import { ThumbsUp, Send, Eye, CheckCircle } from "lucide-react";
+import SiemensLogo from "../components/SiemensLogo";
 import FishboneDiagram from "../components/FishboneDiagram";
 import { useSocket } from "../hooks/useSocket";
 
@@ -117,6 +118,9 @@ export default function ParticipantSessionPage() {
     "stage:changed": (payload) => {
       const { stage } = payload as { stage: number };
       setState(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev);
+      if ((stage as number) >= 6) {
+        navigate(`/report/${id}`);
+      }
     },
     "action:added": (action) => {
       setState(prev => prev ? { ...prev, actions: [...prev.actions, action as Action] } : prev);
@@ -216,11 +220,11 @@ export default function ParticipantSessionPage() {
   const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-siemens-teal-50">
       <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Fish className="w-5 h-5 text-indigo-600" />
+          <div className="flex items-center gap-3">
+            <SiemensLogo heightClass="h-6" showWordmark={false} />
             <span className="font-semibold text-gray-900 truncate">{session.title}</span>
           </div>
           <span className="text-sm text-gray-500">{participant?.display_name}</span>
@@ -231,7 +235,7 @@ export default function ParticipantSessionPage() {
         <div className="mb-6">
           <p className="text-sm text-gray-500 mb-3">{session.project_name}</p>
           <StageIndicator current={stage} />
-          <p className="text-center text-sm font-medium text-indigo-700 mt-2">
+          <p className="text-center text-sm font-medium text-siemens-teal mt-2">
             Stage {stage}: {STAGE_NAMES[stage] ?? "Complete"}
           </p>
         </div>
@@ -284,7 +288,7 @@ export default function ParticipantSessionPage() {
                   <div className="flex gap-3">
                     {(["lesson_learned", "new_project_approach"] as const).map(t => (
                       <label key={t} className={`flex-1 flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                        causeType === t ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
+                        causeType === t ? "border-siemens-teal bg-siemens-teal-50" : "border-gray-200"
                       }`}>
                         <input
                           type="radio"
@@ -356,7 +360,7 @@ export default function ParticipantSessionPage() {
                       disabled={submittingVote === cause.id}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         voted
-                          ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                          ? "bg-siemens-teal text-white hover:bg-siemens-teal-700"
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
