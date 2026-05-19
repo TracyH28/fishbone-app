@@ -11,7 +11,7 @@ import CauseNotesThread, { Note } from "../components/CauseNotesThread";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
-  id: number; description: string; cause_type: string;
+  id: number; description: string; cause_type: "lesson_learned" | "new_project_approach";
   category_id: number; category_name: string; category_colour: string;
   participant_name: string; selected: boolean | null;
   dismissal_reason: string | null;
