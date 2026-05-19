@@ -5,7 +5,7 @@ import { useSocket } from "../hooks/useSocket";
 import Layout from "../components/Layout";
 import StageIndicator from "../components/StageIndicator";
 import RiskBadge from "../components/RiskBadge";
-import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2, Users } from "lucide-react";
 import FishboneDiagram from "../components/FishboneDiagram";
 
 interface Category { id: number; name: string; colour: string }
@@ -42,6 +42,7 @@ export default function FacilitatorSessionPage() {
   const [newAction, setNewAction] = useState<{ cause_id: number; description: string; owner: string } | null>(null);
   const [, setPendingFinals] = useState<Map<string, string>>(new Map());
   const [dismissalDrafts, setDismissalDrafts] = useState<Map<number, string>>(new Map());
+  const [onlineParticipants, setOnlineParticipants] = useState<Set<string>>(new Set());
 
   const reload = useCallback(() => {
     api.get(`/${id}/full`).then(r => {
@@ -80,6 +81,14 @@ export default function FacilitatorSessionPage() {
     "stage:changed": (payload) => {
       const { stage } = payload as { stage: number };
       setData(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev);
+    },
+    "participant:online": (payload) => {
+      const { display_name } = payload as { display_name: string };
+      setOnlineParticipants(prev => new Set(prev).add(display_name));
+    },
+    "participant:offline": (payload) => {
+      const { display_name } = payload as { display_name: string };
+      setOnlineParticipants(prev => { const s = new Set(prev); s.delete(display_name); return s; });
     },
   });
 
@@ -169,6 +178,14 @@ export default function FacilitatorSessionPage() {
 
   const appUrl = window.location.origin;
 
+  // Derive per-participant cause counts from loaded causes
+  const causesByParticipant = new Map<string, Cause[]>();
+  causes.forEach(c => {
+    const arr = causesByParticipant.get(c.participant_name) ?? [];
+    arr.push(c);
+    causesByParticipant.set(c.participant_name, arr);
+  });
+
   return (
     <Layout>
       <div className="max-w-5xl mx-auto">
@@ -181,6 +198,43 @@ export default function FacilitatorSessionPage() {
         </div>
 
         <StageIndicator current={stage} />
+
+        {/* Participant presence & contributions panel */}
+        <div className="card mb-6 bg-gray-50 border border-gray-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="w-4 h-4 text-siemens-teal" />
+            <h2 className="font-semibold text-sm">Participants</h2>
+            <span className="ml-auto text-xs text-gray-400">{onlineParticipants.size} online</span>
+          </div>
+          {participants.length === 0 ? (
+            <p className="text-gray-400 text-xs italic">No participants have joined yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {participants.map(p => {
+                const isOnline = onlineParticipants.has(p.display_name);
+                const pCauses = causesByParticipant.get(p.display_name) ?? [];
+                return (
+                  <div key={p.id} title={pCauses.length > 0 ? pCauses.map(c => `• ${c.description}`).join("\n") : "No causes submitted yet"}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                      isOnline
+                        ? "bg-white border-siemens-teal-100 text-gray-700"
+                        : "bg-gray-100 border-gray-200 text-gray-400"
+                    }`}>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? "bg-green-400" : "bg-gray-300"}`} />
+                    <span>{p.display_name}</span>
+                    {pCauses.length > 0 && (
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                        isOnline ? "bg-siemens-teal-50 text-siemens-teal" : "bg-gray-200 text-gray-400"
+                      }`}>
+                        {pCauses.length}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Stage navigation */}
         <div className="flex justify-between mb-6">
