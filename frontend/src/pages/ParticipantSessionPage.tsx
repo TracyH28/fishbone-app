@@ -15,6 +15,7 @@ interface Cause {
   selected: boolean | null; vote_count: number;
 }
 interface Action { id: number; cause_id: number; description: string; owner: "siemens" | "csl" }
+interface RiskFinal { id: number; cause_id: number; rating: string }
 interface SessionState {
   session: { id: number; title: string; project_name: string; stage: number };
   categories: Category[];
@@ -22,6 +23,7 @@ interface SessionState {
   actions: Action[];
   myVotes: number[];
   myRatings: Record<number, { stage: number; rating: string }[]>;
+  riskFinals: RiskFinal[];
   notes: Note[];
 }
 
@@ -64,7 +66,7 @@ export default function ParticipantSessionPage() {
         if (!myRatings[r.cause_id]) myRatings[r.cause_id] = [];
         myRatings[r.cause_id].push({ stage: r.stage, rating: r.rating });
       });
-      setState({ ...data, myRatings });
+      setState({ ...data, myRatings, riskFinals: data.riskFinals ?? [] });
       if (data.categories.length > 0 && causeCategory === "") {
         setCauseCategory(data.categories[0].id);
       }
@@ -223,7 +225,7 @@ export default function ParticipantSessionPage() {
     </div>
   );
 
-  const { session, categories, causes, actions, myVotes, myRatings, notes } = state;
+  const { session, categories, causes, actions, myVotes, myRatings, riskFinals, notes } = state;
   const stage = session.stage;
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
@@ -463,14 +465,26 @@ export default function ParticipantSessionPage() {
             {selectedCauses.map(cause => {
               const cat = categoryMap[cause.category_id];
               const causeActions = actions.filter(a => a.cause_id === cause.id);
+              const finalRating = riskFinals.find(rf => rf.cause_id === cause.id)?.rating;
+              const myStage3Rating = (myRatings[cause.id] ?? []).find(r => r.stage === 3)?.rating;
+              const displayRating = finalRating ?? myStage3Rating;
               return (
                 <div key={cause.id} className="card">
                   <div className="flex items-start gap-2 mb-3">
                     {cat && <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ background: cat.colour }} />}
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{cause.description}</p>
                       <p className="text-xs text-gray-400">{cat?.name}</p>
                     </div>
+                    {displayRating && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        displayRating === "high"   ? "bg-red-100 text-red-700"
+                        : displayRating === "medium" ? "bg-amber-100 text-amber-700"
+                        : "bg-green-100 text-green-700"
+                      }`}>
+                        Risk: {displayRating.charAt(0).toUpperCase() + displayRating.slice(1)}
+                      </span>
+                    )}
                   </div>
                   {causeActions.length === 0 ? (
                     <p className="text-xs text-gray-400 italic">No actions yet</p>
