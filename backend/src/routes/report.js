@@ -39,10 +39,16 @@ router.get("/:sessionId/report", async (req, res) => {
   const { rows: participants } = await pool.query(
     "SELECT id, display_name, joined_at FROM participants WHERE session_id = $1", [id]
   );
-  const { rows: notes } = causeIds.length ? await pool.query(
-    "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
-    [causeIds]
-  ) : { rows: [] };
+  let notes = [];
+  if (causeIds.length) {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
+        [causeIds]
+      );
+      notes = rows;
+    } catch (_) { /* table may not exist in older deployments */ }
+  }
 
   res.json({ session, categories, causes, voteCounts, riskFinals, actions, residualFinals, participants, notes });
 });
@@ -101,10 +107,16 @@ router.get("/:sessionId/full", async (req, res) => {
   const { rows: participants } = await pool.query(
     "SELECT id, display_name, joined_at FROM participants WHERE session_id = $1", [id]
   );
-  const { rows: notes } = causeIds.length ? await pool.query(
-    "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
-    [causeIds]
-  ) : { rows: [] };
+  let notes = [];
+  if (causeIds.length) {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM cause_notes WHERE cause_id = ANY($1::int[]) ORDER BY created_at",
+        [causeIds]
+      );
+      notes = rows;
+    } catch (_) { /* table may not exist in older deployments */ }
+  }
 
   res.json({ session, categories, causes, votes, ratings, riskFinals, actions, residualFinals, participants, notes });
 });
