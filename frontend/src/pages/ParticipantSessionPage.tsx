@@ -6,6 +6,7 @@ import { ThumbsUp, Send, Eye, CheckCircle } from "lucide-react";
 import SiemensLogo from "../components/SiemensLogo";
 import FishboneDiagram from "../components/FishboneDiagram";
 import { useSocket } from "../hooks/useSocket";
+import CauseNotesThread, { Note } from "../components/CauseNotesThread";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
@@ -21,6 +22,7 @@ interface SessionState {
   actions: Action[];
   myVotes: number[];
   myRatings: Record<number, { stage: number; rating: string }[]>;
+  notes: Note[];
 }
 
 const STAGE_NAMES = ["", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk"];
@@ -135,6 +137,9 @@ export default function ParticipantSessionPage() {
       const { id: actionId } = payload as { id: number };
       setState(prev => prev ? { ...prev, actions: prev.actions.filter(a => a.id !== actionId) } : prev);
     },
+    "note:added": (note) => {
+      setState(prev => prev ? { ...prev, notes: [...prev.notes, note as Note] } : prev);
+    },
   });
 
   async function submitCause(e: FormEvent) {
@@ -196,6 +201,13 @@ export default function ParticipantSessionPage() {
     }
   }
 
+  async function addNote(causeId: number, content: string) {
+    await api.post(`/sessions/${id}/causes/${causeId}/notes`, {
+      content,
+      participant_name: participant?.display_name ?? "Anonymous",
+    });
+  }
+
   if (error) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="card text-center">
@@ -211,7 +223,7 @@ export default function ParticipantSessionPage() {
     </div>
   );
 
-  const { session, categories, causes, actions, myVotes, myRatings } = state;
+  const { session, categories, causes, actions, myVotes, myRatings, notes } = state;
   const stage = session.stage;
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
@@ -320,14 +332,17 @@ export default function ParticipantSessionPage() {
                   {sortedCauses.map(cause => {
                     const cat = categoryMap[cause.category_id];
                     return (
-                      <div key={cause.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
-                        {cat && <div className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: cat.colour }} />}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm">{cause.description}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
-                          </p>
+                      <div key={cause.id} className="p-2 bg-gray-50 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          {cat && <div className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: cat.colour }} />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">{cause.description}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
+                            </p>
+                          </div>
                         </div>
+                        <CauseNotesThread causeId={cause.id} notes={notes ?? []} myName={participant?.display_name} onAdd={addNote} />
                       </div>
                     );
                   })}
@@ -347,26 +362,29 @@ export default function ParticipantSessionPage() {
                 const cat = categoryMap[cause.category_id];
                 const voted = myVotes.includes(cause.id);
                 return (
-                  <div key={cause.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200">
-                    {cat && <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ background: cat.colour }} />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{cause.description}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
-                      </p>
+                  <div key={cause.id} className="p-3 rounded-lg border border-gray-200">
+                    <div className="flex items-start gap-3">
+                      {cat && <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ background: cat.colour }} />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{cause.description}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => toggleVote(cause.id)}
+                        disabled={submittingVote === cause.id}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          voted
+                            ? "bg-siemens-teal text-white hover:bg-siemens-teal-700"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                        {cause.vote_count}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => toggleVote(cause.id)}
-                      disabled={submittingVote === cause.id}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        voted
-                          ? "bg-siemens-teal text-white hover:bg-siemens-teal-700"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                    >
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                      {cause.vote_count}
-                    </button>
+                    <CauseNotesThread causeId={cause.id} notes={notes ?? []} myName={participant?.display_name} onAdd={addNote} />
                   </div>
                 );
               })}
@@ -421,6 +439,7 @@ export default function ParticipantSessionPage() {
                       </p>
                     )}
                   </div>
+                  <CauseNotesThread causeId={cause.id} notes={notes ?? []} myName={participant?.display_name} onAdd={addNote} />
                 </div>
               );
             })}
@@ -469,6 +488,7 @@ export default function ParticipantSessionPage() {
                       ))}
                     </div>
                   )}
+                  <CauseNotesThread causeId={cause.id} notes={notes ?? []} myName={participant?.display_name} onAdd={addNote} />
                 </div>
               );
             })}
@@ -530,6 +550,7 @@ export default function ParticipantSessionPage() {
                       </p>
                     )}
                   </div>
+                  <CauseNotesThread causeId={cause.id} notes={notes ?? []} myName={participant?.display_name} onAdd={addNote} />
                 </div>
               );
             })}

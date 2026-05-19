@@ -24,6 +24,7 @@ router.post("/", requireFacilitator, async (req, res) => {
     "INSERT INTO categories (session_id, name, colour, display_order) VALUES ($1,$2,$3,$4) RETURNING *",
     [req.params.sessionId, name.trim(), colour || "#6366f1", order]
   );
+  req.app.get("io").to(`session:${req.params.sessionId}`).emit("category:added", rows[0]);
   res.status(201).json(rows[0]);
 });
 
@@ -39,6 +40,7 @@ router.patch("/:catId", requireFacilitator, async (req, res) => {
     "UPDATE categories SET name=$1, colour=$2, display_order=$3 WHERE id=$4 RETURNING *",
     [name ?? c.name, colour ?? c.colour, display_order ?? c.display_order, c.id]
   );
+  req.app.get("io").to(`session:${req.params.sessionId}`).emit("category:updated", rows[0]);
   res.json(rows[0]);
 });
 
@@ -47,6 +49,7 @@ router.delete("/:catId", requireFacilitator, async (req, res) => {
     "DELETE FROM categories WHERE id = $1 AND session_id = $2",
     [req.params.catId, req.params.sessionId]
   );
+  req.app.get("io").to(`session:${req.params.sessionId}`).emit("category:deleted", { id: parseInt(req.params.catId) });
   res.status(204).end();
 });
 
