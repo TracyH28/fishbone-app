@@ -154,7 +154,14 @@ export default function ReportPage() {
     </div>
   );
 
-  const { session, categories, causes, participants } = report;
+  const { session, categories, causes } = report;
+  // Deduplicate participants by display_name (keep first occurrence of each name)
+  const seenNames = new Set<string>();
+  const participants = report.participants.filter(p => {
+    if (seenNames.has(p.display_name)) return false;
+    seenNames.add(p.display_name);
+    return true;
+  });
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const categoryOrder    = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
   const sortedCauses     = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
@@ -187,6 +194,32 @@ export default function ReportPage() {
   function downloadPdf() {
     const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
     window.open(`${apiBase}/api/${id}/pdf`, "_blank");
+  }
+
+  function downloadCsv() {
+    const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["#", "Owner", "Cause", "Category", "Cause Type", "Initial Risk", "Residual Risk", "Action"].join(",");
+    const rows = allActions.map((a, i) => {
+      const cat = categoryMap[a.cause.category_id];
+      return [
+        i + 1,
+        escape(a.owner === "siemens" ? "Siemens" : "CSL"),
+        escape(a.cause.description),
+        escape(cat?.name ?? ""),
+        escape(a.cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"),
+        escape(a.cause.initial_risk ?? ""),
+        escape(a.cause.residual_risk ?? ""),
+        escape(a.description),
+      ].join(",");
+    });
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `actions-session-${id}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -301,18 +334,21 @@ export default function ReportPage() {
         )}
 
         {/* ── Fishbone diagram ──────────────────────────────────────────── */}
-        <FishboneDiagram
-          title={session.title}
-          categories={categories}
-          causes={selectedCauses}
-          riskData={Object.fromEntries(
-            selectedCauses.filter(c => c.initial_risk).map(c => [c.id, c.initial_risk as Rating])
-          )}
-        />
+        <div className="break-before-page">
+          <FishboneDiagram
+            title={session.title}
+            categories={categories}
+            causes={selectedCauses}
+            reportMode={true}
+            riskData={Object.fromEntries(
+              selectedCauses.filter(c => c.initial_risk).map(c => [c.id, c.initial_risk as Rating])
+            )}
+          />
+        </div>
 
         {/* ── Selected Causes — grouped by category ─────────────────────── */}
         {selectedCauses.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-10 break-before-page">
             <SectionHeading sub={`${selectedCauses.length} cause${selectedCauses.length !== 1 ? "s" : ""} taken forward across ${causesByCategory.length} categor${causesByCategory.length !== 1 ? "ies" : "y"}`}>
               Selected Causes
             </SectionHeading>
@@ -406,10 +442,17 @@ export default function ReportPage() {
 
         {/* ── Action Register ───────────────────────────────────────────── */}
         {allActions.length > 0 && (
-          <div className="mb-10">
-            <SectionHeading sub={`${allActions.length} action${allActions.length !== 1 ? "s" : ""} · ${siemensActions.length} Siemens · ${cslActions.length} CSL`}>
-              Action Register
-            </SectionHeading>
+          <div className="mb-10 break-before-page">
+            <div className="flex items-start justify-between mb-4">
+              <SectionHeading sub={`${allActions.length} action${allActions.length !== 1 ? "s" : ""} · ${siemensActions.length} Siemens · ${cslActions.length} CSL`}>
+                Action Register
+              </SectionHeading>
+              {!isPrint && (
+                <button onClick={downloadCsv} className="btn-secondary btn-sm flex-shrink-0 ml-4 mt-1">
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </button>
+              )}
+            </div>
 
             {/* Siemens actions */}
             {siemensActions.length > 0 && (
@@ -431,7 +474,7 @@ export default function ReportPage() {
 
         {/* ── Appendix: Dismissed causes ────────────────────────────────── */}
         {dismissedCauses.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-10 break-before-page">
             <SectionHeading sub={`${dismissedCauses.length} cause${dismissedCauses.length !== 1 ? "s" : ""} reviewed and not taken forward`}>
               Appendix — Considered Causes
             </SectionHeading>

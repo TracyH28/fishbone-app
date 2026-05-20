@@ -12,32 +12,23 @@ interface Props {
   causes: Cause[];
   /** Optional risk ratings keyed by cause id — adds a coloured left-border to each box */
   riskData?: Record<number, "high" | "medium" | "low">;
+  /** Render at a larger scale for the printed report */
+  reportMode?: boolean;
 }
 
-// ─── Layout constants ────────────────────────────────────────────────────────
-const W             = 1200;
-const SPINE_START   = 140;
-const SPINE_END     = 1050;
-const HEAD_X        = SPINE_END + 10;
-const HEAD_W        = W - HEAD_X - 10;
-const HEAD_H        = 100;
-const BONE_ANGLE    = Math.PI / 4;
-const MIN_BONE_LEN  = 130;
-const HORIZ_PER_CAUSE = 52;
-const BONE_MARGIN      = 120;  // vertical padding for labels + boxes
-const CAUSE_BRANCH_LEN = 20;
-const LABEL_EXTENSION  = 55;   // pixels beyond bone tip where the category pill sits
-const BOX_W         = 160;
-const BOX_PADDING   = 5;
-const LINE_H        = 13;
-const CHARS_PER_LINE = 22;
-const MAX_LINES      = 4;
-const RISK_BAR_W    = 4;     // width of the coloured risk left-border strip
+// ─── Fixed layout constants (same in all modes) ──────────────────────────────
+const W           = 1200;
+const SPINE_START = 140;
+const SPINE_END   = 1050;
+const HEAD_X      = SPINE_END + 10;
+const HEAD_W      = W - HEAD_X - 10;
+const BONE_ANGLE  = Math.PI / 4;
+const MAX_LINES   = 4;
 
 // ─── Brand colours ───────────────────────────────────────────────────────────
-const TEAL   = "#009999";
+const TEAL      = "#009999";
 const TEAL_DARK = "#007777";
-const NAVY   = "#000028";
+const NAVY      = "#000028";
 
 const RISK_COLOURS: Record<string, string> = {
   high:   "#ef4444",
@@ -45,34 +36,32 @@ const RISK_COLOURS: Record<string, string> = {
   low:    "#22c55e",
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function wrapText(text: string): string[] {
+// ─── Helpers (accept config so they work in both modes) ──────────────────────
+function wrapText(text: string, charsPerLine: number): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
-    if (next.length <= CHARS_PER_LINE) {
+    if (next.length <= charsPerLine) {
       current = next;
     } else {
       if (current) lines.push(current);
-      current = word.length > CHARS_PER_LINE ? word.slice(0, CHARS_PER_LINE - 1) + "…" : word;
+      current = word.length > charsPerLine ? word.slice(0, charsPerLine - 1) + "…" : word;
     }
   }
   if (current) lines.push(current);
-  // Cap at MAX_LINES and add ellipsis if truncated
   if (lines.length > MAX_LINES) {
     const truncated = lines.slice(0, MAX_LINES);
     const last = truncated[MAX_LINES - 1];
-    truncated[MAX_LINES - 1] = last.length <= CHARS_PER_LINE - 1 ? last + "…" : last.slice(0, CHARS_PER_LINE - 1) + "…";
+    truncated[MAX_LINES - 1] = last.length <= charsPerLine - 1 ? last + "…" : last.slice(0, charsPerLine - 1) + "…";
     return truncated;
   }
   return lines;
 }
 
-/** Bone length grows with number of causes so labels don't crowd */
-function getBoneLength(n: number): number {
-  return Math.max(MIN_BONE_LEN, Math.ceil(HORIZ_PER_CAUSE * (n + 1) / Math.cos(BONE_ANGLE)));
+function getBoneLength(n: number, horizPerCause: number, minBoneLen: number): number {
+  return Math.max(minBoneLen, Math.ceil(horizPerCause * (n + 1) / Math.cos(BONE_ANGLE)));
 }
 
 /** Lighten a hex colour by mixing with white at the given opacity (0–1) */
@@ -85,8 +74,23 @@ function tintColour(hex: string, opacity: number): string {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function FishboneDiagram({ title, categories, causes, riskData }: Props) {
+export default function FishboneDiagram({ title, categories, causes, riskData, reportMode = false }: Props) {
   if (categories.length === 0) return null;
+
+  // ── Mode-specific layout constants ──────────────────────────────────────────
+  const HEAD_H          = reportMode ? 120  : 100;
+  const HORIZ_PER_CAUSE = reportMode ? 65   : 52;
+  const MIN_BONE_LEN    = reportMode ? 160  : 130;
+  const BONE_MARGIN     = reportMode ? 160  : 120;
+  const CAUSE_BRANCH_LEN = reportMode ? 25  : 20;
+  const LABEL_EXTENSION = reportMode ? 75   : 55;
+  const BOX_W           = reportMode ? 210  : 160;
+  const BOX_PADDING     = reportMode ? 6    : 5;
+  const LINE_H          = reportMode ? 17   : 13;
+  const CHARS_PER_LINE  = reportMode ? 28   : 22;
+  const RISK_BAR_W      = reportMode ? 5    : 4;
+  const PILL_FONT       = reportMode ? 14   : 12;
+  const CAUSE_FONT      = reportMode ? 12   : 10;
 
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const N = sortedCategories.length;
@@ -95,16 +99,14 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
   const cosA = Math.cos(BONE_ANGLE);
   const sinA = Math.sin(BONE_ANGLE);
 
-  // Overall height is still driven by the longest bone (for centering the spine)
   const maxBoneLen = sortedCategories.reduce((max, cat) => {
     const n = causes.filter(c => c.category_id === cat.id).length;
-    return Math.max(max, getBoneLength(n));
+    return Math.max(max, getBoneLength(n, HORIZ_PER_CAUSE, MIN_BONE_LEN));
   }, MIN_BONE_LEN);
 
   const H = Math.max(400, Math.ceil((maxBoneLen * sinA + BONE_MARGIN) * 2));
   const SPINE_Y = H / 2;
 
-  // ViewBox extends left to cover the longest bone tip + label
   const firstSpineX = SPINE_START + spacing;
   const viewBoxLeft = Math.min(0, Math.floor(firstSpineX - (maxBoneLen + LABEL_EXTENSION) * cosA - 160));
   const viewBoxWidth = W - viewBoxLeft;
@@ -119,26 +121,23 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
       )}
       <svg viewBox={`${viewBoxLeft} 0 ${viewBoxWidth} ${H}`} className="w-full">
         <defs>
-          {/* Arrow head in Siemens teal */}
           <marker id="fb-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill={TEAL} />
           </marker>
-
-          {/* Subtle drop-shadow for cause boxes */}
           <filter id="fb-shadow" x="-10%" y="-20%" width="120%" height="140%">
             <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#00000018" />
           </filter>
         </defs>
 
-        {/* Spine — teal */}
+        {/* Spine */}
         <line
           x1={SPINE_START} y1={SPINE_Y}
           x2={SPINE_END}   y2={SPINE_Y}
-          stroke={TEAL} strokeWidth={3}
+          stroke={TEAL} strokeWidth={reportMode ? 4 : 3}
           markerEnd="url(#fb-arrow)"
         />
 
-        {/* Head box — Siemens navy/teal */}
+        {/* Head box */}
         <rect
           x={HEAD_X} y={SPINE_Y - HEAD_H / 2}
           width={HEAD_W} height={HEAD_H}
@@ -152,7 +151,7 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
             // @ts-ignore
             xmlns="http://www.w3.org/1999/xhtml"
             style={{
-              fontSize: 11, fontWeight: 700, color: "#ffffff",
+              fontSize: reportMode ? 13 : 11, fontWeight: 700, color: "#ffffff",
               wordBreak: "break-word", textAlign: "center",
               display: "flex", alignItems: "center", justifyContent: "center",
               height: "100%", lineHeight: 1.3,
@@ -164,27 +163,24 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
 
         {/* Category bones */}
         {sortedCategories.map((cat, i) => {
-          const spineX  = SPINE_START + spacing * (i + 1);
-          const isTop   = i % 2 === 0;
-          const sign    = isTop ? -1 : 1;
+          const spineX    = SPINE_START + spacing * (i + 1);
+          const isTop     = i % 2 === 0;
+          const sign      = isTop ? -1 : 1;
           const catCauses = causes.filter(c => c.category_id === cat.id).sort((a, b) => a.id - b.id);
 
-          // ── Per-bone length (scales with its own cause count) ──────────────
-          const boneLen = getBoneLength(catCauses.length);
+          const boneLen = getBoneLength(catCauses.length, HORIZ_PER_CAUSE, MIN_BONE_LEN);
           const outerX  = spineX - boneLen * cosA;
           const outerY  = SPINE_Y + sign * boneLen * sinA;
 
-          // Pill label dimensions — positioned along the bone beyond its tip
-          const labelText    = cat.name;
-          const pillPadX     = 8;
-          const pillPadY     = 4;
-          const pillFontSize = 12;
-          const pillW        = Math.max(60, labelText.length * pillFontSize * 0.6 + pillPadX * 2);
-          const pillH        = pillFontSize + pillPadY * 2;
-          const extX         = outerX - LABEL_EXTENSION * cosA;
-          const extY         = outerY + sign * LABEL_EXTENSION * sinA;
-          const pillX        = extX - pillW / 2;
-          const pillY        = isTop ? extY - pillH - 6 : extY + 6;
+          // Pill label — placed along the bone beyond its tip
+          const pillPadX = 8;
+          const pillPadY = 4;
+          const pillW    = Math.max(60, cat.name.length * PILL_FONT * 0.6 + pillPadX * 2);
+          const pillH    = PILL_FONT + pillPadY * 2;
+          const extX     = outerX - LABEL_EXTENSION * cosA;
+          const extY     = outerY + sign * LABEL_EXTENSION * sinA;
+          const pillX    = extX - pillW / 2;
+          const pillY    = isTop ? extY - pillH - 6 : extY + 6;
 
           return (
             <g key={cat.id}>
@@ -192,26 +188,17 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
               <line
                 x1={outerX} y1={outerY}
                 x2={spineX} y2={SPINE_Y}
-                stroke={cat.colour} strokeWidth={2.5}
+                stroke={cat.colour} strokeWidth={reportMode ? 3 : 2.5}
               />
 
               {/* Pill category label */}
-              <rect
-                x={pillX} y={pillY}
-                width={pillW} height={pillH}
-                rx={pillH / 2}
-                fill={cat.colour}
-              />
+              <rect x={pillX} y={pillY} width={pillW} height={pillH} rx={pillH / 2} fill={cat.colour} />
               <text
-                x={pillX + pillW / 2}
-                y={pillY + pillH / 2}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={pillFontSize}
-                fontWeight="700"
-                fill="#ffffff"
+                x={pillX + pillW / 2} y={pillY + pillH / 2}
+                textAnchor="middle" dominantBaseline="central"
+                fontSize={PILL_FONT} fontWeight="700" fill="#ffffff"
               >
-                {labelText}
+                {cat.name}
               </text>
 
               {/* Cause branches */}
@@ -220,7 +207,7 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
                 const bx          = outerX + t * (spineX - outerX);
                 const by          = outerY + t * (SPINE_Y - outerY);
                 const branchEndY  = by + sign * CAUSE_BRANCH_LEN;
-                const lines       = wrapText(cause.description);
+                const lines       = wrapText(cause.description, CHARS_PER_LINE);
                 const boxH        = lines.length * LINE_H + BOX_PADDING * 2;
                 const boxY        = isTop ? branchEndY - boxH : branchEndY;
                 const textStartY  = boxY + BOX_PADDING + LINE_H / 2;
@@ -234,12 +221,11 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
 
                     {/* Vertical branch line */}
                     <line
-                      x1={bx} y1={by}
-                      x2={bx} y2={branchEndY}
+                      x1={bx} y1={by} x2={bx} y2={branchEndY}
                       stroke={cat.colour} strokeWidth={1.5} strokeOpacity={0.65}
                     />
 
-                    {/* Box background — category tinted */}
+                    {/* Box background */}
                     <rect
                       x={bx - BOX_W / 2} y={boxY}
                       width={BOX_W} height={boxH}
@@ -247,34 +233,29 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
                       stroke={cat.colour} strokeWidth={1} strokeOpacity={0.5}
                     />
 
-                    {/* Risk colour left-border strip (only when riskData provided) */}
+                    {/* Risk colour left-border strip */}
                     {risk && (
                       <rect
                         x={bx - BOX_W / 2} y={boxY}
                         width={RISK_BAR_W} height={boxH}
-                        rx={4}
-                        fill={RISK_COLOURS[risk]}
+                        rx={4} fill={RISK_COLOURS[risk]}
                       />
                     )}
 
                     {/* Cause type dot — top-right corner */}
                     {cause.cause_type && (
                       <circle
-                        cx={bx + BOX_W / 2 - 6}
-                        cy={boxY + 6}
-                        r={3.5}
-                        fill={isLL ? TEAL : NAVY}
-                        opacity={0.7}
+                        cx={bx + BOX_W / 2 - 6} cy={boxY + 6}
+                        r={reportMode ? 4.5 : 3.5}
+                        fill={isLL ? TEAL : NAVY} opacity={0.7}
                       />
                     )}
 
                     {/* Description text */}
                     <text
                       x={bx + (risk ? RISK_BAR_W / 2 : 0)}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={10}
-                      fill="#374151"
+                      textAnchor="middle" dominantBaseline="central"
+                      fontSize={CAUSE_FONT} fill="#374151"
                     >
                       {lines.map((line, li) => (
                         <tspan key={li} x={bx + (risk ? RISK_BAR_W / 2 : 0)} y={textStartY + li * LINE_H}>
@@ -289,7 +270,7 @@ export default function FishboneDiagram({ title, categories, causes, riskData }:
           );
         })}
 
-        {/* Legend — cause type key, bottom-left of viewbox */}
+        {/* Legend */}
         <g transform={`translate(${viewBoxLeft + 12}, ${H - 32})`}>
           <circle cx={6} cy={6} r={4} fill={TEAL} opacity={0.7} />
           <text x={14} y={10} fontSize={9} fill="#6b7280">Lesson Learned</text>
