@@ -6,7 +6,7 @@ const STAGES = [
   { n: 5, label: "Residual Risk" },
 ];
 
-export default function StageIndicator({ current }: { current: number }) {
+export default function StageIndicator({ current, dark = false }: { current: number; dark?: boolean }) {
   return (
     <div className="flex items-center gap-0 w-full mb-6 overflow-x-auto">
       {STAGES.map((s, i) => (
@@ -15,13 +15,13 @@ export default function StageIndicator({ current }: { current: number }) {
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2
               ${current === s.n ? "bg-siemens-teal border-siemens-teal text-white" :
                 current > s.n ? "bg-green-500 border-green-500 text-white" :
-                "bg-white border-gray-300 text-gray-400"}`}>
+                dark ? "bg-transparent border-gray-500 text-gray-400" : "bg-white border-gray-300 text-gray-400"}`}>
               {current > s.n ? "✓" : s.n}
             </div>
-            <span className="text-xs mt-1 text-center leading-tight px-1 truncate w-full text-center">{s.label}</span>
+            <span className={`text-xs mt-1 text-center leading-tight px-1 truncate w-full ${dark ? "text-gray-300" : "text-gray-600"}`}>{s.label}</span>
           </div>
           {i < STAGES.length - 1 && (
-            <div className={`h-0.5 w-4 flex-shrink-0 ${current > s.n ? "bg-green-400" : "bg-gray-200"}`} />
+            <div className={`h-0.5 w-4 flex-shrink-0 ${current > s.n ? "bg-green-400" : dark ? "bg-gray-600" : "bg-gray-200"}`} />
           )}
         </div>
       ))}

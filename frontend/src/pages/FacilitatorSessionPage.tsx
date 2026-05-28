@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useSocket } from "../hooks/useSocket";
-import Layout from "../components/Layout";
+import StarfieldLayout from "../components/StarfieldLayout";
 import StageIndicator from "../components/StageIndicator";
 import RiskBadge from "../components/RiskBadge";
 import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2, Users } from "lucide-react";
@@ -165,7 +165,7 @@ export default function FacilitatorSessionPage() {
     setData(prev => prev ? { ...prev, actions: prev.actions.filter(a => a.id !== actionId) } : prev);
   }
 
-  if (!data) return <Layout><div className="text-gray-400 text-center py-12">Loading…</div></Layout>;
+  if (!data) return <StarfieldLayout><div className="text-gray-400 text-center py-12">Loading…</div></StarfieldLayout>;
 
   const { session, categories, causes, riskFinals, actions, residualFinals, participants } = data;
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
@@ -198,17 +198,17 @@ export default function FacilitatorSessionPage() {
   });
 
   return (
-    <Layout>
+    <StarfieldLayout>
       <div className="max-w-5xl mx-auto">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-bold">{session.title}</h1>
-            <p className="text-gray-500 text-sm">{session.project_name} · {participants.length} participant{participants.length !== 1 ? "s" : ""} · Code: <span className="font-mono font-bold">{session.join_code}</span></p>
+            <h1 className="text-2xl font-bold text-white">{session.title}</h1>
+            <p className="text-gray-400 text-sm">{session.project_name} · {participants.length} participant{participants.length !== 1 ? "s" : ""} · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
           </div>
-          <a href={`/report/${id}`} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">View Report</a>
+          <a href={`/report/${id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg font-medium transition-colors" style={{ background: "rgba(255,255,255,0.08)", color: "#e5e7eb", border: "1px solid rgba(255,255,255,0.15)" }}>View Report</a>
         </div>
 
-        <StageIndicator current={stage} />
+        <StageIndicator current={stage} dark={true} />
 
         {/* Participant presence & contributions panel */}
         <div className="card mb-6 bg-gray-50 border border-gray-200">
@@ -251,7 +251,7 @@ export default function FacilitatorSessionPage() {
         <div className="flex justify-between mb-6">
           <div>
             {stage > 1 && (
-              <button onClick={goBackStage} className="btn-secondary">
+              <button onClick={goBackStage} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-sm" style={{ background: "rgba(255,255,255,0.08)", color: "#e5e7eb", border: "1px solid rgba(255,255,255,0.15)" }}>
                 <ChevronLeft className="w-4 h-4" />
                 Back to {["", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk"][stage - 1]}
               </button>
@@ -277,8 +277,8 @@ export default function FacilitatorSessionPage() {
         {/* STAGE 1: Cause Entry */}
         {stage === 1 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1">Stage 1 — Cause Entry</h2>
-            <p className="text-gray-500 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 1 — Cause Entry</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium text-gray-300">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
             {sortedCategories.map(cat => {
               const catCauses = sortedCauses.filter(c => c.category_id === cat.id);
               return (
@@ -314,8 +314,8 @@ export default function FacilitatorSessionPage() {
         {/* STAGE 2: Alignment / Voting */}
         {stage === 2 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1">Stage 2 — Alignment</h2>
-            <p className="text-gray-500 text-sm mb-4">Participants are voting. Select which causes to proceed with.</p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 2 — Alignment</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are voting. Select which causes to proceed with.</p>
             {sortedCauses.map(cause => {
               const isDismissed = cause.selected === false;
               const draftReason = dismissalDrafts.has(cause.id)
@@ -377,8 +377,8 @@ export default function FacilitatorSessionPage() {
         {/* STAGE 3: Risk Rating */}
         {stage === 3 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1">Stage 3 — Risk Impact Rating</h2>
-            <p className="text-gray-500 text-sm mb-4">Participants are submitting ratings. Set the final rating for each selected cause.</p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 3 — Risk Impact Rating</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are submitting ratings. Set the final rating for each selected cause.</p>
             {selectedCauses.map(cause => {
               const dist = ratingDist(cause.id, 3);
               const final = finalRating(cause.id);
@@ -424,8 +424,8 @@ export default function FacilitatorSessionPage() {
         {/* STAGE 4: Actions */}
         {stage === 4 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1">Stage 4 — Proposed Actions</h2>
-            <p className="text-gray-500 text-sm mb-4">Enter proposed actions for each selected cause.</p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 4 — Proposed Actions</h2>
+            <p className="text-gray-400 text-sm mb-4">Enter proposed actions for each selected cause.</p>
             {selectedCauses.map(cause => {
               const causeActions = actions.filter(a => a.cause_id === cause.id);
               const isAdding = newAction?.cause_id === cause.id;
@@ -483,8 +483,8 @@ export default function FacilitatorSessionPage() {
         {/* STAGE 5: Residual Risk */}
         {stage === 5 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1">Stage 5 — Residual Risk</h2>
-            <p className="text-gray-500 text-sm mb-4">Participants are rating residual risk. Confirm the final residual rating for each cause.</p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 5 — Residual Risk</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are rating residual risk. Confirm the final residual rating for each cause.</p>
             {selectedCauses.map(cause => {
               const causeActions = actions.filter(a => a.cause_id === cause.id);
               const dist = ratingDist(cause.id, 5);
@@ -545,6 +545,6 @@ export default function FacilitatorSessionPage() {
           </div>
         )}
       </div>
-    </Layout>
+    </StarfieldLayout>
   );
 }
