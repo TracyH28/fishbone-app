@@ -18,6 +18,7 @@ export function registerSockets(io) {
           socket.data.sessionId = sessionId;
           // Notify facilitator that this participant is online
           io.to(`facilitator:${sessionId}`).emit("participant:online", {
+            id: rows[0].id,
             display_name: rows[0].display_name,
           });
         }

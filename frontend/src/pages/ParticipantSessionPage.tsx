@@ -284,6 +284,7 @@ export default function ParticipantSessionPage() {
             title={session.title}
             categories={categories}
             causes={selectedCauses}
+            causeTypeLabels={cfg.causeTypes}
           />
         )}
 

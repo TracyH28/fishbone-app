@@ -357,6 +357,7 @@ export default function ReportPage() {
             riskData={Object.fromEntries(
               selectedCauses.filter(c => c.initial_risk).map(c => [c.id, c.initial_risk as Rating])
             )}
+            causeTypeLabels={cfg.causeTypes}
           />
         </div>
 

@@ -14,6 +14,8 @@ interface Props {
   riskData?: Record<number, "high" | "medium" | "low">;
   /** Render at a larger scale for the printed report */
   reportMode?: boolean;
+  /** Labels for the two cause type dots in the legend. Defaults to Lessons Learned terminology. */
+  causeTypeLabels?: [string, string];
 }
 
 // ─── Fixed layout constants (same in all modes) ──────────────────────────────
@@ -74,7 +76,7 @@ function tintColour(hex: string, opacity: number): string {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function FishboneDiagram({ title, categories, causes, riskData, reportMode = false }: Props) {
+export default function FishboneDiagram({ title, categories, causes, riskData, reportMode = false, causeTypeLabels = ["Lesson Learned", "New Project Approach"] }: Props) {
   if (categories.length === 0) return null;
 
   // ── Mode-specific layout constants ──────────────────────────────────────────
@@ -273,9 +275,9 @@ export default function FishboneDiagram({ title, categories, causes, riskData, r
         {/* Legend */}
         <g transform={`translate(${viewBoxLeft + 12}, ${H - 32})`}>
           <circle cx={6} cy={6} r={4} fill={TEAL} opacity={0.7} />
-          <text x={14} y={10} fontSize={9} fill="#6b7280">Lesson Learned</text>
+          <text x={14} y={10} fontSize={9} fill="#6b7280">{causeTypeLabels[0]}</text>
           <circle cx={90} cy={6} r={4} fill={NAVY} opacity={0.7} />
-          <text x={98} y={10} fontSize={9} fill="#6b7280">New Project Approach</text>
+          <text x={98} y={10} fontSize={9} fill="#6b7280">{causeTypeLabels[1]}</text>
           {riskData && Object.keys(riskData).length > 0 && (
             <>
               <rect x={190} y={2} width={6} height={8} rx={1} fill={RISK_COLOURS.high} />

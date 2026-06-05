@@ -83,8 +83,14 @@ export default function FacilitatorSessionPage() {
     },
     "note:added": (note) => setNotes(prev => [...prev, note as Note]),
     "participant:online": (payload) => {
-      const { display_name } = payload as { display_name: string };
+      const { id: pid, display_name } = payload as { id: number; display_name: string };
       setOnlineParticipants(prev => new Set(prev).add(display_name));
+      // Add to participants list if they joined after the page loaded
+      setData(prev => {
+        if (!prev) return prev;
+        if (prev.participants.some(p => p.id === pid)) return prev;
+        return { ...prev, participants: [...prev.participants, { id: pid, display_name }] };
+      });
     },
     "participant:offline": (payload) => {
       const { display_name } = payload as { display_name: string };
@@ -288,6 +294,7 @@ export default function FacilitatorSessionPage() {
             title={session.title}
             categories={categories}
             causes={selectedCauses}
+            causeTypeLabels={cfg.causeTypes}
           />
         )}
 
