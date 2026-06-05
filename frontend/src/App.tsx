@@ -12,7 +12,7 @@ import ReportPage from "./pages/ReportPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { facilitator } = useAuth();
-  return facilitator ? <>{children}</> : <Navigate to="/login" replace />;
+  return facilitator ? <>{children}</> : <Navigate to="/join" replace />;
 }
 
 export default function App() {

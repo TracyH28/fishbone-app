@@ -50,15 +50,10 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center space-y-3">
+        <div className="mt-6 text-center">
           <p className="text-sm text-gray-500">
             No account? <Link to="/register" className="text-siemens-teal font-medium hover:underline">Register</Link>
           </p>
-          <div className="border-t border-gray-200 pt-4">
-            <Link to="/join" className="text-sm text-gray-500 hover:text-siemens-teal">
-              Joining as a participant? Click here →
-            </Link>
-          </div>
         </div>
       </div>
     </div>

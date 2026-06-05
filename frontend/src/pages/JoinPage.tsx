@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { Users } from "lucide-react";
 import SiemensLogo from "../components/SiemensLogo";
@@ -73,6 +73,12 @@ export default function JoinPage() {
             {loading ? "Joining…" : "Join Session"}
           </button>
         </form>
+
+        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+          <Link to="/login" className="text-sm text-gray-400 hover:text-siemens-teal transition-colors">
+            Facilitator sign in →
+          </Link>
+        </div>
       </div>
     </div>
   );
