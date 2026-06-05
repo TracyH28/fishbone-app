@@ -36,7 +36,7 @@ export default function JoinPage() {
       <div className="card w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <SiemensLogo heightClass="h-12" showWordmark={true} />
-          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Risk Review</p>
+          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Review</p>
           <div className="flex items-center gap-2 mt-4">
             <div className="bg-siemens-teal text-white p-2 rounded-xl">
               <Users className="w-5 h-5" />

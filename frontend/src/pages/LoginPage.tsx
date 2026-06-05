@@ -31,7 +31,7 @@ export default function LoginPage() {
       <div className="card w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <SiemensLogo heightClass="h-12" showWordmark={true} />
-          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Risk Review</p>
+          <p className="text-gray-400 mt-3 text-xs uppercase tracking-widest">Fishbone Review</p>
           <p className="text-gray-500 mt-4 text-sm font-medium">Facilitator sign in</p>
         </div>
 
