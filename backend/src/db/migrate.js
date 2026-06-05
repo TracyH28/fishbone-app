@@ -101,6 +101,17 @@ async function migrate() {
   await pool.query(schema);
   // Additive column migrations (safe to re-run)
   await pool.query(`ALTER TABLE causes ADD COLUMN IF NOT EXISTS dismissal_reason TEXT`);
+
+  // Vision Setting: session type column (default lessons_learned for existing rows)
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_type TEXT NOT NULL DEFAULT 'lessons_learned'`);
+
+  // Vision Setting: multi-select owner tags for actions
+  await pool.query(`ALTER TABLE actions ADD COLUMN IF NOT EXISTS owner_tags TEXT[]`);
+
+  // Vision Setting: expand the owner CHECK to allow 'vision_setting' sentinel value
+  await pool.query(`ALTER TABLE actions DROP CONSTRAINT IF EXISTS actions_owner_check`);
+  await pool.query(`ALTER TABLE actions ADD CONSTRAINT actions_owner_check CHECK (owner IN ('siemens','csl','vision_setting'))`);
+
   console.log("Migrations complete.");
   await pool.end();
 }

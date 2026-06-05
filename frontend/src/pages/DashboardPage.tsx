@@ -3,14 +3,24 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import Layout from "../components/Layout";
 import { Plus, ExternalLink, Settings, PlayCircle, Trash2 } from "lucide-react";
+import { getSessionConfig, SessionType } from "../lib/sessionConfig";
 
 interface Session {
   id: number; title: string; project_name: string;
   join_code: string; stage: number; created_at: string;
   opens_at: string | null; closes_at: string | null;
+  session_type: SessionType;
 }
 
-const STAGE_LABELS = ["Setup", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk", "Complete"];
+function getStageLabel(session: Session): string {
+  const cfg = getSessionConfig(session.session_type);
+  // stage 0 = Setup, stages 1..N = cfg stages, last+1 = Complete
+  if (session.stage === 0) return "Setup";
+  const found = cfg.stages.find(s => s.n === session.stage);
+  if (found) return found.label;
+  // stage beyond the last stage = Complete
+  return "Complete";
+}
 
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -60,14 +70,17 @@ export default function DashboardPage() {
         {sessions.map(s => (
           <div key={s.id} className="card flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h2 className="font-semibold text-gray-900 truncate">{s.title}</h2>
                 <span className="text-xs bg-siemens-teal-100 text-siemens-teal px-2 py-0.5 rounded-full font-mono">{s.join_code}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   s.stage === 0 ? "bg-gray-100 text-gray-600" :
-                  s.stage >= 6 ? "bg-green-100 text-green-700" :
+                  s.stage > (getSessionConfig(s.session_type).stages.length) ? "bg-green-100 text-green-700" :
                   "bg-amber-100 text-amber-700"
-                }`}>{STAGE_LABELS[s.stage] ?? "Unknown"}</span>
+                }`}>{getStageLabel(s)}</span>
+                {s.session_type === "vision_setting" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-siemens-teal text-white">Vision Setting</span>
+                )}
               </div>
               <p className="text-sm text-gray-500">{s.project_name}</p>
               <p className="text-xs text-gray-400 mt-1">

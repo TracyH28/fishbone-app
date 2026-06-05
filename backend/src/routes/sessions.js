@@ -16,13 +16,15 @@ router.get("/", requireFacilitator, async (req, res) => {
 
 // Facilitator: create session
 router.post("/", requireFacilitator, async (req, res) => {
-  const { title, project_name, opens_at, closes_at } = req.body;
+  const { title, project_name, opens_at, closes_at, session_type = 'lessons_learned' } = req.body;
   if (!title || !project_name) return res.status(400).json({ error: "title and project_name required" });
+  const allowedTypes = ['lessons_learned', 'vision_setting'];
+  if (!allowedTypes.includes(session_type)) return res.status(400).json({ error: "Invalid session_type" });
   const join_code = nanoid(6).toUpperCase();
   const { rows } = await pool.query(
-    `INSERT INTO sessions (facilitator_id, title, project_name, join_code, opens_at, closes_at)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [req.facilitatorId, title, project_name, join_code, opens_at || null, closes_at || null]
+    `INSERT INTO sessions (facilitator_id, title, project_name, join_code, opens_at, closes_at, session_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [req.facilitatorId, title, project_name, join_code, opens_at || null, closes_at || null, session_type]
   );
   res.status(201).json(rows[0]);
 });

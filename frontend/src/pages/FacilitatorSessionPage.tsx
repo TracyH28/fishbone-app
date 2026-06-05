@@ -8,6 +8,7 @@ import RiskBadge from "../components/RiskBadge";
 import { ChevronRight, ChevronLeft, Check, X, ThumbsUp, Plus, Trash2, Users } from "lucide-react";
 import FishboneDiagram from "../components/FishboneDiagram";
 import CauseNotesThread, { Note } from "../components/CauseNotesThread";
+import { getSessionConfig, SessionType } from "../lib/sessionConfig";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
@@ -20,27 +21,22 @@ interface VoteCount { cause_id: number; count: number }
 interface RatingDist { cause_id: number; stage: number; ratings: string[] }
 interface RiskFinal { cause_id: number; stage: number; rating: string }
 interface ResidualFinal { cause_id: number; rating: string }
-interface Action { id: number; cause_id: number; description: string; owner: string }
+interface Action { id: number; cause_id: number; description: string; owner: string; owner_tags: string[] | null }
 interface Participant { id: number; display_name: string }
 interface FullData {
-  session: { id: number; title: string; project_name: string; stage: number; join_code: string };
+  session: { id: number; title: string; project_name: string; stage: number; join_code: string; session_type: SessionType };
   categories: Category[]; causes: Cause[]; votes: VoteCount[];
   ratings: { cause_id: number; stage: number; rating: string }[];
   riskFinals: RiskFinal[]; actions: Action[]; residualFinals: ResidualFinal[];
   participants: Participant[]; notes: Note[];
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  lesson_learned: "Lesson Learned",
-  new_project_approach: "New Approach",
-};
-
 export default function FacilitatorSessionPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<FullData | null>(null);
   const [voteCounts, setVoteCounts] = useState<Map<number, number>>(new Map());
   const [ratingDists, setRatingDists] = useState<Map<string, string[]>>(new Map());
-  const [newAction, setNewAction] = useState<{ cause_id: number; description: string; owner: string } | null>(null);
+  const [newAction, setNewAction] = useState<{ cause_id: number; description: string; owner: string; owner_tags: string[] } | null>(null);
   const [, setPendingFinals] = useState<Map<string, string>>(new Map());
   const [dismissalDrafts, setDismissalDrafts] = useState<Map<number, string>>(new Map());
   const [onlineParticipants, setOnlineParticipants] = useState<Set<string>>(new Set());
@@ -149,7 +145,11 @@ export default function FacilitatorSessionPage() {
 
   async function addAction() {
     if (!newAction || !newAction.description.trim()) return;
-    await api.post(`/sessions/${id}/actions`, newAction);
+    const { cause_id, description, owner, owner_tags } = newAction;
+    const payload = owner_tags.length > 0
+      ? { cause_id, description, owner_tags }
+      : { cause_id, description, owner };
+    await api.post(`/sessions/${id}/actions`, payload);
     setNewAction(null);
   }
 
@@ -168,11 +168,28 @@ export default function FacilitatorSessionPage() {
   if (!data) return <StarfieldLayout><div className="text-gray-400 text-center py-12">Loading…</div></StarfieldLayout>;
 
   const { session, categories, causes, riskFinals, actions, residualFinals, participants } = data;
+  const cfg = getSessionConfig(session.session_type);
+  const completeStage = cfg.hasResidualRisk ? 6 : 5;
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
   const sortedCauses = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
   const selectedCauses = sortedCauses.filter(c => c.selected === true);
   const stage = session.stage;
+
+  // Type label lookup — mode-aware
+  const TYPE_LABELS: Record<string, string> = {
+    lesson_learned: cfg.causeTypes[0],
+    new_project_approach: cfg.causeTypes[1],
+  };
+
+  function getBackLabel(fromStage: number): string {
+    const found = cfg.stages.find(s => s.n === fromStage - 1);
+    return found ? found.label : "Previous";
+  }
+  function getAdvanceLabel(fromStage: number): string {
+    const found = cfg.stages.find(s => s.n === fromStage + 1);
+    return found ? found.label : "Complete";
+  }
 
   function ratingDist(causeId: number, s: number) {
     return ratingDists.get(`${causeId}:${s}`) || [];
@@ -208,7 +225,7 @@ export default function FacilitatorSessionPage() {
           <a href={`/report/${id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg font-medium transition-colors" style={{ background: "rgba(255,255,255,0.08)", color: "#e5e7eb", border: "1px solid rgba(255,255,255,0.15)" }}>View Report</a>
         </div>
 
-        <StageIndicator current={stage} dark={true} />
+        <StageIndicator current={stage} dark={true} stages={cfg.stages} />
 
         {/* Participant presence & contributions panel */}
         <div className="card mb-6 bg-gray-50 border border-gray-200">
@@ -253,13 +270,13 @@ export default function FacilitatorSessionPage() {
             {stage > 1 && (
               <button onClick={goBackStage} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-sm" style={{ background: "rgba(255,255,255,0.08)", color: "#e5e7eb", border: "1px solid rgba(255,255,255,0.15)" }}>
                 <ChevronLeft className="w-4 h-4" />
-                Back to {["", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk"][stage - 1]}
+                Back to {getBackLabel(stage)}
               </button>
             )}
           </div>
-          {stage < 6 && (
+          {stage < completeStage && (
             <button onClick={advanceStage} className="btn-primary">
-              {stage === 5 ? "Complete Session" : `Advance to ${["", "Alignment", "Risk Rating", "Actions", "Residual Risk", "Complete"][stage]}`}
+              {stage === completeStage - 1 ? "Complete Session" : `Advance to ${getAdvanceLabel(stage)}`}
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
@@ -274,22 +291,23 @@ export default function FacilitatorSessionPage() {
           />
         )}
 
-        {/* STAGE 1: Cause Entry */}
+        {/* STAGE 1: Cause/Idea Entry */}
         {stage === 1 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1 text-white">Stage 1 — Cause Entry</h2>
-            <p className="text-gray-400 text-sm mb-4">Participants are entering causes in real time. Share the join link: <span className="font-mono font-medium text-gray-300">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 1 — {cfg.stages[0].label}</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are entering {cfg.itemNoun.toLowerCase()}s in real time. Share the join link: <span className="font-mono font-medium text-gray-300">{appUrl}/join</span> · Code: <span className="font-mono font-bold text-siemens-teal">{session.join_code}</span></p>
             {sortedCategories.map(cat => {
               const catCauses = sortedCauses.filter(c => c.category_id === cat.id);
+              const noun = cfg.itemNoun.toLowerCase();
               return (
                 <div key={cat.id} className="card mb-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-3 h-3 rounded-full" style={{ background: cat.colour }} />
                     <h3 className="font-semibold">{cat.name}</h3>
-                    <span className="text-xs text-gray-400">{catCauses.length} cause{catCauses.length !== 1 ? "s" : ""}</span>
+                    <span className="text-xs text-gray-400">{catCauses.length} {noun}{catCauses.length !== 1 ? "s" : ""}</span>
                   </div>
                   {catCauses.length === 0 ? (
-                    <p className="text-gray-400 text-sm italic">No causes yet</p>
+                    <p className="text-gray-400 text-sm italic">No {noun}s yet</p>
                   ) : (
                     <div className="space-y-2">
                       {catCauses.map(cause => (
@@ -315,7 +333,7 @@ export default function FacilitatorSessionPage() {
         {stage === 2 && (
           <div>
             <h2 className="text-lg font-semibold mb-1 text-white">Stage 2 — Alignment</h2>
-            <p className="text-gray-400 text-sm mb-4">Participants are voting. Select which causes to proceed with.</p>
+            <p className="text-gray-400 text-sm mb-4">Participants are voting. Select which {cfg.itemNoun.toLowerCase()}s to proceed with.</p>
             {sortedCauses.map(cause => {
               const isDismissed = cause.selected === false;
               const draftReason = dismissalDrafts.has(cause.id)
@@ -374,11 +392,11 @@ export default function FacilitatorSessionPage() {
           </div>
         )}
 
-        {/* STAGE 3: Risk Rating */}
+        {/* STAGE 3: Risk / Priority Rating */}
         {stage === 3 && (
           <div>
-            <h2 className="text-lg font-semibold mb-1 text-white">Stage 3 — Risk Impact Rating</h2>
-            <p className="text-gray-400 text-sm mb-4">Participants are submitting ratings. Set the final rating for each selected cause.</p>
+            <h2 className="text-lg font-semibold mb-1 text-white">Stage 3 — {cfg.stage3Label}</h2>
+            <p className="text-gray-400 text-sm mb-4">Participants are submitting ratings. Set the final rating for each selected {cfg.itemNoun.toLowerCase()}.</p>
             {selectedCauses.map(cause => {
               const dist = ratingDist(cause.id, 3);
               const final = finalRating(cause.id);
@@ -425,24 +443,36 @@ export default function FacilitatorSessionPage() {
         {stage === 4 && (
           <div>
             <h2 className="text-lg font-semibold mb-1 text-white">Stage 4 — Proposed Actions</h2>
-            <p className="text-gray-400 text-sm mb-4">Enter proposed actions for each selected cause.</p>
+            <p className="text-gray-400 text-sm mb-4">Enter proposed actions for each selected {cfg.itemNoun.toLowerCase()}.</p>
             {selectedCauses.map(cause => {
               const causeActions = actions.filter(a => a.cause_id === cause.id);
               const isAdding = newAction?.cause_id === cause.id;
+
+              function getActionOwnerLabel(action: Action): string {
+                if (action.owner === "vision_setting" && action.owner_tags?.length) {
+                  return action.owner_tags.join(", ");
+                }
+                return action.owner === "siemens" ? "Siemens" : "CSL";
+              }
+              function getActionOwnerStyle(action: Action): string {
+                if (action.owner === "vision_setting") return "bg-siemens-teal/10 text-siemens-teal-700";
+                return action.owner === "siemens" ? "bg-teal-100 text-teal-700" : "bg-orange-100 text-orange-700";
+              }
+
               return (
                 <div key={cause.id} className="card mb-4">
                   <div className="flex items-start gap-2 mb-3">
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: cause.category_colour }}>{cause.category_name}</span>
                     <p className="text-sm font-medium">{cause.description}</p>
-                    <RiskBadge rating={finalRating(cause.id) as "high" | "medium" | "low"} />
+                    {cfg.hasResidualRisk && <RiskBadge rating={finalRating(cause.id) as "high" | "medium" | "low"} />}
                   </div>
 
                   {causeActions.length > 0 && (
                     <div className="space-y-2 mb-3">
                       {causeActions.map(action => (
                         <div key={action.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 ${action.owner === "siemens" ? "bg-teal-100 text-teal-700" : "bg-orange-100 text-orange-700"}`}>
-                            {action.owner === "siemens" ? "Siemens" : "CSL"}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 ${getActionOwnerStyle(action)}`}>
+                            {getActionOwnerLabel(action)}
                           </span>
                           <p className="text-sm flex-1">{action.description}</p>
                           <button onClick={() => deleteAction(action.id)} className="text-red-400 hover:text-red-600">
@@ -454,21 +484,50 @@ export default function FacilitatorSessionPage() {
                   )}
 
                   {isAdding ? (
-                    <div className="flex gap-2 flex-wrap">
-                      <input className="input flex-1 text-sm" placeholder="Action description…"
-                        value={newAction.description}
-                        onChange={e => setNewAction(prev => prev ? { ...prev, description: e.target.value } : prev)}
-                        autoFocus />
-                      <select className="input w-36 text-sm" value={newAction.owner}
-                        onChange={e => setNewAction(prev => prev ? { ...prev, owner: e.target.value } : prev)}>
-                        <option value="siemens">Siemens</option>
-                        <option value="csl">CSL</option>
-                      </select>
-                      <button onClick={addAction} className="btn-primary btn-sm">Save</button>
-                      <button onClick={() => setNewAction(null)} className="btn-secondary btn-sm">Cancel</button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <input className="input flex-1 text-sm" placeholder="Action description…"
+                          value={newAction.description}
+                          onChange={e => setNewAction(prev => prev ? { ...prev, description: e.target.value } : prev)}
+                          autoFocus />
+                        {cfg.ownerMode === "radio" ? (
+                          <select className="input w-36 text-sm" value={newAction.owner}
+                            onChange={e => setNewAction(prev => prev ? { ...prev, owner: e.target.value } : prev)}>
+                            <option value="siemens">Siemens</option>
+                            <option value="csl">CSL</option>
+                          </select>
+                        ) : null}
+                        <button onClick={addAction} className="btn-primary btn-sm">Save</button>
+                        <button onClick={() => setNewAction(null)} className="btn-secondary btn-sm">Cancel</button>
+                      </div>
+                      {cfg.ownerMode === "multiselect" && cfg.ownerOptions && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <span className="text-xs text-gray-500 self-center">Owner(s):</span>
+                          {cfg.ownerOptions.map(opt => {
+                            const selected = newAction.owner_tags.includes(opt);
+                            return (
+                              <button key={opt} type="button"
+                                onClick={() => setNewAction(prev => {
+                                  if (!prev) return prev;
+                                  const tags = selected
+                                    ? prev.owner_tags.filter(t => t !== opt)
+                                    : [...prev.owner_tags, opt];
+                                  return { ...prev, owner_tags: tags };
+                                })}
+                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                  selected
+                                    ? "bg-siemens-teal border-siemens-teal text-white"
+                                    : "border-gray-300 text-gray-600 hover:border-siemens-teal"
+                                }`}>
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <button onClick={() => setNewAction({ cause_id: cause.id, description: "", owner: "siemens" })}
+                    <button onClick={() => setNewAction({ cause_id: cause.id, description: "", owner: "siemens", owner_tags: [] })}
                       className="btn-secondary btn-sm">
                       <Plus className="w-4 h-4" /> Add Action
                     </button>
@@ -481,7 +540,7 @@ export default function FacilitatorSessionPage() {
         )}
 
         {/* STAGE 5: Residual Risk */}
-        {stage === 5 && (
+        {cfg.hasResidualRisk && stage === 5 && (
           <div>
             <h2 className="text-lg font-semibold mb-1 text-white">Stage 5 — Residual Risk</h2>
             <p className="text-gray-400 text-sm mb-4">Participants are rating residual risk. Confirm the final residual rating for each cause.</p>
@@ -534,7 +593,7 @@ export default function FacilitatorSessionPage() {
           </div>
         )}
 
-        {stage >= 6 && (
+        {stage >= completeStage && (
           <div className="card text-center py-12">
             <Check className="w-12 h-12 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold mb-2">Session Complete</h2>

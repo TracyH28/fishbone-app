@@ -7,6 +7,7 @@ import SiemensLogo from "../components/SiemensLogo";
 import FishboneDiagram from "../components/FishboneDiagram";
 import { useSocket } from "../hooks/useSocket";
 import CauseNotesThread, { Note } from "../components/CauseNotesThread";
+import { getSessionConfig, SessionType } from "../lib/sessionConfig";
 
 interface Category { id: number; name: string; colour: string }
 interface Cause {
@@ -14,10 +15,10 @@ interface Cause {
   cause_type: "lesson_learned" | "new_project_approach";
   selected: boolean | null; vote_count: number;
 }
-interface Action { id: number; cause_id: number; description: string; owner: "siemens" | "csl" }
+interface Action { id: number; cause_id: number; description: string; owner: string; owner_tags?: string[] | null }
 interface RiskFinal { id: number; cause_id: number; rating: string }
 interface SessionState {
-  session: { id: number; title: string; project_name: string; stage: number };
+  session: { id: number; title: string; project_name: string; stage: number; session_type: SessionType };
   categories: Category[];
   causes: Cause[];
   actions: Action[];
@@ -26,8 +27,6 @@ interface SessionState {
   riskFinals: RiskFinal[];
   notes: Note[];
 }
-
-const STAGE_NAMES = ["", "Cause Entry", "Alignment", "Risk Rating", "Actions", "Residual Risk"];
 
 export default function ParticipantSessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -122,7 +121,9 @@ export default function ParticipantSessionPage() {
     "stage:changed": (payload) => {
       const { stage } = payload as { stage: number };
       setState(prev => prev ? { ...prev, session: { ...prev.session, stage } } : prev);
-      if ((stage as number) >= 6) {
+      const sessionType = state?.session?.session_type;
+      const completeStage = getSessionConfig(sessionType).hasResidualRisk ? 6 : 5;
+      if ((stage as number) >= completeStage) {
         navigate(`/report/${id}`);
       }
     },
@@ -226,12 +227,35 @@ export default function ParticipantSessionPage() {
   );
 
   const { session, categories, causes, actions, myVotes, myRatings, riskFinals, notes } = state;
+  const cfg = getSessionConfig(session.session_type);
+  const completeStage = cfg.hasResidualRisk ? 6 : 5;
   const stage = session.stage;
   const sortedCategories = [...categories].sort((a, b) => a.id - b.id);
   const categoryOrder = Object.fromEntries(sortedCategories.map((c, i) => [c.id, i]));
   const sortedCauses = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
   const selectedCauses = sortedCauses.filter(c => c.selected === true);
   const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const noun = cfg.itemNoun.toLowerCase();
+
+  // Mode-aware type labels
+  const TYPE_LABELS: Record<string, string> = {
+    lesson_learned: cfg.causeTypes[0],
+    new_project_approach: cfg.causeTypes[1],
+  };
+
+  // Mode-aware action owner label
+  function getActionOwnerLabel(action: Action): string {
+    if (action.owner === "vision_setting" && action.owner_tags?.length) {
+      return action.owner_tags.join(", ");
+    }
+    return action.owner === "siemens" ? "Siemens" : "CSL";
+  }
+  function getActionOwnerStyle(action: Action): string {
+    if (action.owner === "vision_setting") return "bg-siemens-teal/10 text-siemens-teal-700";
+    return action.owner === "siemens" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700";
+  }
+
+  const currentStageLabel = cfg.stages.find(s => s.n === stage)?.label ?? "Complete";
 
   return (
     <div className="min-h-screen bg-siemens-teal-50">
@@ -248,9 +272,9 @@ export default function ParticipantSessionPage() {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
           <p className="text-sm text-gray-500 mb-3">{session.project_name}</p>
-          <StageIndicator current={stage} />
+          <StageIndicator current={stage} stages={cfg.stages} />
           <p className="text-center text-sm font-medium text-siemens-teal mt-2">
-            Stage {stage}: {STAGE_NAMES[stage] ?? "Complete"}
+            Stage {stage}: {currentStageLabel}
           </p>
         </div>
 
@@ -263,14 +287,14 @@ export default function ParticipantSessionPage() {
           />
         )}
 
-        {/* Stage 1: Cause Entry */}
+        {/* Stage 1: Idea/Cause Entry */}
         {stage === 1 && (
           <div className="space-y-4">
             <div className="card">
-              <h2 className="font-semibold mb-4">Submit a Cause</h2>
+              <h2 className="font-semibold mb-4">Submit a {cfg.itemNoun}</h2>
               {causeSuccess && (
                 <div className="bg-green-50 text-green-700 rounded-lg px-4 py-2 text-sm mb-4 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" /> Cause submitted successfully!
+                  <CheckCircle className="w-4 h-4" /> {cfg.itemNoun} submitted successfully!
                 </div>
               )}
               <form onSubmit={submitCause} className="space-y-4">
@@ -293,7 +317,7 @@ export default function ParticipantSessionPage() {
                     className="input min-h-[80px] resize-y"
                     value={causeDesc}
                     onChange={e => setCauseDesc(e.target.value)}
-                    placeholder="Describe the cause…"
+                    placeholder={`Describe the ${noun}…`}
                     required
                   />
                 </div>
@@ -313,7 +337,7 @@ export default function ParticipantSessionPage() {
                           className="sr-only"
                         />
                         <span className="text-sm font-medium">
-                          {t === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
+                          {TYPE_LABELS[t]}
                         </span>
                       </label>
                     ))}
@@ -321,15 +345,15 @@ export default function ParticipantSessionPage() {
                 </div>
                 <button type="submit" disabled={submittingCause} className="btn-primary w-full justify-center">
                   <Send className="w-4 h-4" />
-                  {submittingCause ? "Submitting…" : "Submit Cause"}
+                  {submittingCause ? "Submitting…" : `Submit ${cfg.itemNoun}`}
                 </button>
               </form>
             </div>
 
-            {/* Live feed of submitted causes */}
+            {/* Live feed of submitted items */}
             {causes.length > 0 && (
               <div className="card">
-                <h3 className="font-semibold mb-3 text-sm text-gray-600">All Submitted Causes ({causes.length})</h3>
+                <h3 className="font-semibold mb-3 text-sm text-gray-600">All Submitted {cfg.itemNoun}s ({causes.length})</h3>
                 <div className="space-y-2">
                   {sortedCauses.map(cause => {
                     const cat = categoryMap[cause.category_id];
@@ -340,7 +364,7 @@ export default function ParticipantSessionPage() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm">{cause.description}</p>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
+                              {cat?.name} · {TYPE_LABELS[cause.cause_type]}
                             </p>
                           </div>
                         </div>
@@ -357,8 +381,8 @@ export default function ParticipantSessionPage() {
         {/* Stage 2: Alignment / Voting */}
         {stage === 2 && (
           <div className="card">
-            <h2 className="font-semibold mb-2">Vote on Causes</h2>
-            <p className="text-sm text-gray-500 mb-4">Upvote causes you think are most important. The facilitator will select which proceed.</p>
+            <h2 className="font-semibold mb-2">Vote on {cfg.itemNoun}s</h2>
+            <p className="text-sm text-gray-500 mb-4">Upvote {noun}s you think are most important. The facilitator will select which proceed.</p>
             <div className="space-y-3">
               {sortedCauses.map(cause => {
                 const cat = categoryMap[cause.category_id];
@@ -370,7 +394,7 @@ export default function ParticipantSessionPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{cause.description}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {cat?.name} · {cause.cause_type === "lesson_learned" ? "Lesson Learned" : "New Project Approach"}
+                          {cat?.name} · {TYPE_LABELS[cause.cause_type]}
                         </p>
                       </div>
                       <button
@@ -391,17 +415,17 @@ export default function ParticipantSessionPage() {
                 );
               })}
               {causes.length === 0 && (
-                <p className="text-gray-400 text-sm text-center py-8">No causes submitted yet</p>
+                <p className="text-gray-400 text-sm text-center py-8">No {noun}s submitted yet</p>
               )}
             </div>
           </div>
         )}
 
-        {/* Stage 3: Risk Rating */}
+        {/* Stage 3: Risk / Priority Rating */}
         {stage === 3 && (
           <div className="space-y-4">
             <div className="card bg-amber-50 border-amber-200">
-              <p className="text-sm text-amber-800 font-medium">Rate the risk impact for each cause below. You can change your rating at any time.</p>
+              <p className="text-sm text-amber-800 font-medium">Rate the {cfg.stage3Label.toLowerCase()} for each {noun} below. You can change your rating at any time.</p>
             </div>
             {selectedCauses.map(cause => {
               const cat = categoryMap[cause.category_id];
@@ -416,7 +440,7 @@ export default function ParticipantSessionPage() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">Your risk rating:</p>
+                    <p className="text-xs text-gray-500 mb-2">Your {cfg.stage3Label.toLowerCase()}:</p>
                     <div className="flex gap-2">
                       {(["high", "medium", "low"] as const).map(r => (
                         <button
@@ -447,7 +471,7 @@ export default function ParticipantSessionPage() {
             })}
             {selectedCauses.length === 0 && (
               <div className="card text-center py-8 text-gray-400">
-                <p>No causes have been selected yet</p>
+                <p>No {noun}s have been selected yet</p>
               </div>
             )}
           </div>
@@ -476,7 +500,7 @@ export default function ParticipantSessionPage() {
                       <p className="font-medium text-sm">{cause.description}</p>
                       <p className="text-xs text-gray-400">{cat?.name}</p>
                     </div>
-                    {displayRating && (
+                    {displayRating && cfg.hasResidualRisk && (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
                         displayRating === "high"   ? "bg-red-100 text-red-700"
                         : displayRating === "medium" ? "bg-amber-100 text-amber-700"
@@ -492,10 +516,8 @@ export default function ParticipantSessionPage() {
                     <div className="space-y-2">
                       {causeActions.map(action => (
                         <div key={action.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 mt-0.5 ${
-                            action.owner === "siemens" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-                          }`}>
-                            {action.owner === "siemens" ? "Siemens" : "CSL"}
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 mt-0.5 ${getActionOwnerStyle(action)}`}>
+                            {getActionOwnerLabel(action)}
                           </span>
                           <p className="text-sm">{action.description}</p>
                         </div>
@@ -509,8 +531,8 @@ export default function ParticipantSessionPage() {
           </div>
         )}
 
-        {/* Stage 5: Residual Risk Rating */}
-        {stage === 5 && (
+        {/* Stage 5: Residual Risk Rating (Lessons Learned only) */}
+        {cfg.hasResidualRisk && stage === 5 && (
           <div className="space-y-4">
             <div className="card bg-amber-50 border-amber-200">
               <p className="text-sm text-amber-800 font-medium">Rate the residual risk impact for each cause, assuming the proposed actions are carried out.</p>
@@ -533,7 +555,7 @@ export default function ParticipantSessionPage() {
                       <p className="text-xs text-gray-500 mb-1">Proposed actions:</p>
                       {causeActions.map(a => (
                         <p key={a.id} className="text-xs text-gray-600">
-                          <span className="font-medium">{a.owner === "siemens" ? "Siemens" : "CSL"}:</span> {a.description}
+                          <span className="font-medium">{getActionOwnerLabel(a)}:</span> {a.description}
                         </p>
                       ))}
                     </div>
@@ -571,12 +593,12 @@ export default function ParticipantSessionPage() {
           </div>
         )}
 
-        {/* Stage 6+: Complete */}
-        {stage >= 6 && (
+        {/* Complete */}
+        {stage >= completeStage && (
           <div className="card text-center py-12">
             <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Session Complete</h2>
-            <p className="text-gray-500 mb-6">Thank you for participating in this Fishbone Risk Review session.</p>
+            <p className="text-gray-500 mb-6">Thank you for participating in this {cfg.displayName} session.</p>
             <a href={`/report/${session.id}`} className="btn-primary inline-flex justify-center">
               View Session Report
             </a>

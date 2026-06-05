@@ -10,6 +10,7 @@ import causesRouter from "./routes/causes.js";
 import actionsRouter from "./routes/actions.js";
 import reportRouter from "./routes/report.js";
 import { registerSockets } from "./sockets/index.js";
+import { pool } from "./db/pool.js";
 
 const app = express();
 const httpServer = createServer(app);

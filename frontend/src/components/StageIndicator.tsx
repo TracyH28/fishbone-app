@@ -1,4 +1,4 @@
-const STAGES = [
+const DEFAULT_STAGES = [
   { n: 1, label: "Cause Entry" },
   { n: 2, label: "Alignment" },
   { n: 3, label: "Risk Rating" },
@@ -6,7 +6,16 @@ const STAGES = [
   { n: 5, label: "Residual Risk" },
 ];
 
-export default function StageIndicator({ current, dark = false }: { current: number; dark?: boolean }) {
+export default function StageIndicator({
+  current,
+  dark = false,
+  stages,
+}: {
+  current: number;
+  dark?: boolean;
+  stages?: { n: number; label: string }[];
+}) {
+  const STAGES = stages ?? DEFAULT_STAGES;
   return (
     <div className="flex items-center gap-0 w-full mb-6 overflow-x-auto">
       {STAGES.map((s, i) => (
