@@ -178,6 +178,7 @@ export default function ReportPage() {
   const sortedCauses     = [...causes].sort((a, b) => categoryOrder[a.category_id] - categoryOrder[b.category_id] || a.id - b.id);
   const selectedCauses   = sortedCauses.filter(c => c.selected === true);
   const dismissedCauses  = sortedCauses.filter(c => c.selected === false);
+  const undecidedCauses  = sortedCauses.filter(c => c.selected === null);
   const categoryMap      = Object.fromEntries(categories.map(c => [c.id, c]));
   const allActions       = selectedCauses.flatMap(c => c.actions.map(a => ({ ...a, cause: c })));
   const siemensActions   = allActions.filter(a => a.owner === "siemens");
@@ -536,9 +537,9 @@ export default function ReportPage() {
         )}
 
         {/* ── Appendix: Dismissed items ─────────────────────────────────── */}
-        {dismissedCauses.length > 0 && (
+        {(dismissedCauses.length > 0 || undecidedCauses.length > 0) && (
           <div className="mb-10 break-before-page">
-            <SectionHeading sub={`${dismissedCauses.length} ${noun}${dismissedCauses.length !== 1 ? "s" : ""} reviewed and not taken forward`}>
+            <SectionHeading sub={`${dismissedCauses.length + undecidedCauses.length} ${noun}${dismissedCauses.length + undecidedCauses.length !== 1 ? "s" : ""} reviewed and not taken forward`}>
               Appendix — Considered {cfg.itemNoun}s
             </SectionHeading>
             <div className="space-y-2">
@@ -557,6 +558,23 @@ export default function ReportPage() {
                       {cause.dismissal_reason && (
                         <p className="text-xs text-gray-500 mt-1 italic">Reason: {cause.dismissal_reason}</p>
                       )}
+                    </div>
+                  </div>
+                );
+              })}
+              {undecidedCauses.map(cause => {
+                const cat = categoryMap[cause.category_id];
+                return (
+                  <div key={cause.id} className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200 opacity-80">
+                    {cat && <div className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: cat.colour }} />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-600">{cause.description}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {cat && <span className="text-xs text-gray-400">{cat.name}</span>}
+                        <TypeBadge type={cause.cause_type} labels={cfg.causeTypes} />
+                        <span className="text-xs text-gray-400">{cause.vote_count} votes</span>
+                        <span className="text-xs text-amber-600 font-medium">No decision recorded</span>
+                      </div>
                     </div>
                   </div>
                 );
